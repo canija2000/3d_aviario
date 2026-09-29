@@ -1,0 +1,577 @@
+<title>Chucao 32-bit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --ground: #07080c;
+    --ink: #eef1f8;
+    --ink-dim: #9aa3c4;
+    --win-top: #2b40a0;
+    --win-mid: #131d5c;
+    --win-bot: #070c33;
+    --win-edge: #d6dbe8;
+    --win-inner: #3a4470;
+    --yes: #f4d35e;
+    --no: #6f7697;
+    --rufous: #d0662a;
+    --pix: "Pixelify Sans", "Courier New", ui-monospace, monospace;
+  }
+  html, body { background: var(--ground); color: var(--ink); }
+  body { font-family: var(--pix); font-size: 16px; }
+  .wrap { max-width: 900px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 40px; display: grid; gap: 18px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+  h1 { margin: 0; font-size: clamp(28px, 6vw, 44px); font-weight: 700; letter-spacing: 0.06em; color: var(--rufous); text-shadow: 3px 3px 0 #2a1208; text-wrap: balance; }
+  h1 small { display: block; font-size: 0.38em; letter-spacing: 0.14em; color: var(--ink-dim); text-shadow: none; font-weight: 400; margin-top: 2px; }
+  .disc { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
+
+  .stage { position: relative; width: min(100%, calc(74vh * 4 / 3)); max-width: 100%; aspect-ratio: 4 / 3; margin: 0 auto; background: #000; border: 2px solid #1b1e2a; box-shadow: 0 0 0 6px #0d0f16; }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; cursor: grab; touch-action: none; display: block; }
+  .stage canvas:active { cursor: grabbing; }
+  .tag { position: absolute; right: 10px; bottom: 8px; font-size: clamp(10px, 1.8vw, 14px); color: #e9eddc; text-shadow: 2px 2px 0 #000; letter-spacing: 0.08em; pointer-events: none; font-variant-numeric: tabular-nums; }
+
+  .win {
+    background: linear-gradient(180deg, var(--win-top) 0%, var(--win-mid) 55%, var(--win-bot) 100%);
+    border: 2px solid var(--win-edge);
+    border-radius: 5px;
+    box-shadow: inset 0 0 0 2px var(--win-inner), 0 0 0 2px #05060b;
+    padding: 14px 16px;
+    color: var(--ink);
+    text-shadow: 2px 2px 0 #060a24;
+  }
+  .dialog { position: absolute; top: 4%; left: 5%; right: 5%; font-size: clamp(12px, 2.3vw, 18px); line-height: 1.35; padding: 0.7em 0.9em; pointer-events: none; transition: opacity .25s; }
+  .dialog b { color: var(--yes); font-weight: 600; }
+
+  .panels { display: grid; grid-template-columns: 1.25fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 680px) { .panels { grid-template-columns: 1fr; } }
+  .win h2 { margin: 0 0 2px; font-size: 22px; letter-spacing: 0.08em; }
+  .sci { color: var(--yes); font-style: italic; margin: 0 0 12px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 5px 14px; margin: 0 0 12px; }
+  dt { color: var(--ink-dim); }
+  dd { margin: 0; }
+  .note { margin: 0; line-height: 1.4; max-width: 60ch; }
+  .stats { margin: 12px 0 0; padding-top: 10px; border-top: 2px solid rgba(214,219,232,.25); color: var(--ink-dim); font-variant-numeric: tabular-nums; font-size: 14px; }
+
+  .opts h2 { margin-bottom: 10px; }
+  .opts ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .opt { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: 16px 1fr auto; gap: 6px; align-items: center; padding: 4px 4px; cursor: pointer; font-family: var(--pix); font-size: 16px; color: var(--ink); text-shadow: 2px 2px 0 #060a24; border-radius: 3px; }
+  .opt .cur { visibility: hidden; color: #fff; }
+  .opt:hover .cur, .opt:focus-visible .cur { visibility: visible; }
+  .opt:focus-visible { outline: 2px dashed var(--yes); outline-offset: 1px; }
+  .opt .val { color: var(--yes); font-variant-numeric: tabular-nums; }
+  .opt .val.off { color: var(--no); }
+  .opt.act { margin-top: 8px; border-top: 2px solid rgba(214,219,232,.25); padding-top: 10px; border-radius: 0; }
+  .hint { margin: 0; text-align: center; color: var(--ink-dim); font-size: 14px; letter-spacing: 0.04em; }
+</style>
+
+<main class="wrap">
+  <header>
+    <h1>CHUCAO<small>SCELORCHILUS RUBECULA</small></h1>
+    <span class="disc">Fauna de Chile · Disco 1</span>
+  </header>
+
+  <div class="stage" id="stage">
+    <canvas id="c" aria-label="Chucao en 3D de baja resolución, saltando en el suelo del bosque"></canvas>
+    <div class="win dialog" id="dialog" hidden></div>
+    <div class="tag" id="tag">240p</div>
+  </div>
+
+  <div class="panels">
+    <section class="win">
+      <h2>CHUCAO</h2>
+      <p class="sci">Scelorchilus rubecula</p>
+      <dl>
+        <dt>Familia</dt><dd>Rhinocryptidae (tapaculos)</dd>
+        <dt>Largo</dt><dd>18–19 cm</dd>
+        <dt>Hábitat</dt><dd>Sotobosque húmedo del centro-sur de Chile</dd>
+        <dt>Vuelo</dt><dd>Casi nunca. Camina y salta con la cola en alto.</dd>
+      </dl>
+      <p class="note">Se oye mucho más de lo que se ve. Según la tradición, si canta a la derecha del caminante es buen augurio; si canta a la izquierda, mejor volver.</p>
+      <p class="stats" id="stats"></p>
+    </section>
+
+    <section class="win opts">
+      <h2>OPCIONES</h2>
+      <ul id="opts"></ul>
+    </section>
+  </div>
+
+  <p class="hint">Arrastra para girar la cámara · rueda para acercar</p>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const tagEl = document.getElementById('tag');
+  const dialog = document.getElementById('dialog');
+
+  // ---------- settings ----------
+  const RES = [120, 240, 480];
+  const S = { res: 1, jitter: true, affine: true, dither: true, stepped: true, auto: !matchMedia('(prefers-reduced-motion: reduce)').matches };
+
+  // ---------- renderer ----------
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+  renderer.setPixelRatio(1);
+  const FOG = 0x2b3527;
+  renderer.setClearColor(FOG);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(50, 4 / 3, 0.3, 60);
+
+  // ---------- PS1-ish shader ----------
+  const shared = {
+    uSnap: { value: new THREE.Vector2(160, 120) },
+    uJitter: { value: 1 }, uAffine: { value: 1 }, uDither: { value: 1 },
+    uLightDir: { value: new THREE.Vector3() },
+    uLightCol: { value: new THREE.Color(0xe8d8b0) },
+    uAmb: { value: new THREE.Color(0x6a7466) },
+    uFogColor: { value: new THREE.Color(FOG) },
+    uFogNear: { value: 8 }, uFogFar: { value: 30 },
+  };
+  const VS = `
+    uniform vec2 uSnap; uniform float uJitter; uniform float uAffine;
+    uniform vec3 uLightDir; uniform vec3 uLightCol; uniform vec3 uAmb;
+    uniform float uFogNear; uniform float uFogFar; uniform vec2 uRepeat; uniform float uTwoSided;
+    varying vec3 vUvw; varying vec3 vLight; varying float vFog;
+    void main() {
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vec4 p = projectionMatrix * mv;
+      if (uJitter > 0.5) {
+        vec2 ndc = p.xy / p.w;
+        ndc = floor(ndc * uSnap + 0.5) / uSnap;
+        p.xy = ndc * p.w;
+      }
+      vec3 n = normalize(normalMatrix * normal);
+      float d = dot(n, uLightDir);
+      d = uTwoSided > 0.5 ? abs(d) : max(d, 0.0);
+      vLight = uAmb + uLightCol * d;
+      float w = uAffine > 0.5 ? p.w : 1.0;
+      vUvw = vec3(uv * uRepeat * w, w);
+      vFog = clamp((-mv.z - uFogNear) / (uFogFar - uFogNear), 0.0, 1.0);
+      gl_Position = p;
+    }`;
+  const FS = `
+    uniform sampler2D map; uniform vec3 uTint; uniform float uDither; uniform vec3 uFogColor; uniform float uAlphaMode;
+    varying vec3 vUvw; varying vec3 vLight; varying float vFog;
+    float b2(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
+    float bayer(vec2 a) { return b2(0.5 * a) * 0.25 + b2(a); }
+    void main() {
+      vec4 t = texture2D(map, vUvw.xy / vUvw.z);
+      float th = bayer(gl_FragCoord.xy);
+      if (uAlphaMode > 1.5) { if (t.a < th * 0.94 + 0.03) discard; }
+      else if (uAlphaMode > 0.5) { if (t.a < 0.5) discard; }
+      vec3 c = t.rgb * uTint * vLight;
+      c = mix(c, uFogColor, vFog);
+      if (uDither > 0.5) { c += (th - 0.47) / 20.0; c = floor(c * 31.0 + 0.5) / 31.0; }
+      gl_FragColor = vec4(c, 1.0);
+    }`;
+  function mat(tex, o = {}) {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        ...shared,
+        map: { value: tex },
+        uTint: { value: new THREE.Color(o.tint ?? 0xffffff) },
+        uRepeat: { value: new THREE.Vector2(o.rx ?? 1, o.ry ?? 1) },
+        uAlphaMode: { value: o.alpha ?? 0 },
+        uTwoSided: { value: o.twoSided ? 1 : 0 },
+      },
+      vertexShader: VS, fragmentShader: FS,
+      side: o.twoSided ? THREE.DoubleSide : THREE.FrontSide,
+    });
+  }
+
+  // ---------- tiny textures, painted pixel by pixel ----------
+  function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const R = mulberry32(1987);
+  const vary = (c, n) => { const k = (R() * 2 - 1) * n; return [c[0] + k, c[1] + k * 0.9, c[2] + k * 0.75]; };
+  let vramBytes = 0, texCount = 0;
+  function makeTex(w, h, fn) {
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const g = cv.getContext('2d'); const im = g.createImageData(w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const c = fn(x, y); const i = (y * w + x) * 4;
+      for (let k = 0; k < 3; k++) im.data[i + k] = Math.max(0, Math.min(248, Math.round(c[k] / 8) * 8)); // 5 bits per channel
+      im.data[i + 3] = c[3] ?? 255;
+    }
+    g.putImageData(im, 0, 0);
+    const t = new THREE.CanvasTexture(cv);
+    t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    vramBytes += w * h * 2; texCount++;
+    return t;
+  }
+
+  const BACK = [78, 56, 36], BACK_D = [52, 37, 25], FLANK = [96, 78, 52];
+  const RUF = [190, 88, 34], RUF_L = [206, 108, 46];
+  const BAR_K = [26, 24, 22], BAR_W = [226, 222, 210], BAR_G = [128, 124, 118];
+
+  // body: side-projected, u = tail → breast, v = belly → back
+  const texBody = makeTex(64, 32, (x, y) => {
+    const u = x / 63, v = 1 - y / 31;
+    if (((u - 0.92) / 0.5) ** 2 + ((v - 0.52) / 0.38) ** 2 < 1) return vary(v > 0.62 && R() < 0.3 ? RUF_L : RUF, 12);
+    if (v < 0.36 && u > 0.12) {
+      const row = (y + (R() < 0.1 ? 1 : 0)) % 3;
+      return row === 0 ? BAR_K : row === 1 ? vary(BAR_W, 8) : vary(BAR_G, 8);
+    }
+    if (v < 0.56) return vary(FLANK, 12);
+    return vary(R() < 0.18 ? BACK_D : BACK, 8);
+  });
+  // head: rufous forehead, face and throat; brown crown and nape; one 2x2 eye
+  const texHead = makeTex(32, 32, (x, y) => {
+    const u = x / 31, v = 1 - y / 31;
+    const ex = x - 19, ey = y - 11;
+    if (ex >= 0 && ex <= 1 && ey >= 0 && ey <= 1) return (ex === 0 && ey === 0) ? [150, 150, 150] : [16, 12, 10];
+    if (ex >= -1 && ex <= 2 && ey >= -1 && ey <= 2) return [120, 60, 30];
+    if (u + (1 - v) * 0.85 > 1.02) return vary(RUF, 10);
+    return vary(R() < 0.2 ? BACK_D : BACK, 8);
+  });
+  const texTail = makeTex(16, 32, (x, y) => vary(y % 5 === 0 ? [44, 30, 20] : [70, 49, 32], 6));
+  const texWing = makeTex(32, 16, (x, y) => {
+    if (x < 9) return vary([46, 33, 23], 5);
+    return vary((x + y) % 6 === 0 ? [118, 92, 62] : [74, 53, 35], 7);
+  });
+  const texPlain = makeTex(4, 4, () => [255, 255, 255]);
+  const texGround = makeTex(32, 32, () => {
+    const r = R();
+    if (r < 0.07) return vary([150, 96, 42], 14);
+    if (r < 0.2) return vary([100, 70, 40], 12);
+    if (r < 0.34) return vary([62, 90, 36], 12);
+    return vary([56, 43, 31], 10);
+  });
+  const texBark = makeTex(32, 32, (x, y) => {
+    if (y < 12 && R() < 0.55) return vary([72, 100, 40], 14);
+    return vary(x % 5 === 0 ? [34, 26, 19] : [66, 50, 36], 8);
+  });
+  const texCane = makeTex(8, 32, (x, y) => vary(y % 11 === 0 ? [96, 90, 40] : [156, 152, 72], 8));
+  const texRock = makeTex(16, 16, () => vary(R() < 0.45 ? [70, 96, 44] : [96, 100, 92], 12));
+  const texFern = makeTex(32, 64, (x, y) => {
+    const v = 1 - y / 63;
+    const stem = 16 + Math.round(Math.sin(v * 2.4) * 2);
+    const dx = Math.abs(x - stem);
+    if (dx === 0 && v < 0.97) return [52, 78, 30];
+    const width = 14 * Math.pow(Math.sin(Math.PI * Math.min(1, v * 1.08)), 0.8) * (1 - v * 0.35);
+    if (dx <= width && (y + Math.floor(dx / 2)) % 4 < 2) return vary(dx < width * 0.5 ? [60, 104, 38] : [86, 132, 50], 12);
+    return [0, 0, 0, 0];
+  });
+  const texShadow = makeTex(16, 16, (x, y) => {
+    const dx = (x - 7.5) / 7.5, dy = (y - 7.5) / 7.5;
+    return [18, 22, 14, dx * dx + dy * dy < 1 ? 175 : 0];
+  });
+
+  // ---------- geometry helpers ----------
+  function sideUV(geo) {
+    geo.computeBoundingBox();
+    const b = geo.boundingBox, p = geo.attributes.position, uv = geo.attributes.uv;
+    for (let i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) - b.min.x) / (b.max.x - b.min.x), (p.getY(i) - b.min.y) / (b.max.y - b.min.y));
+    uv.needsUpdate = true;
+    return geo;
+  }
+  let birdTris = 0;
+  function birdMesh(geo, m) {
+    birdTris += (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
+    return new THREE.Mesh(geo, m);
+  }
+
+  // ---------- the chucao ----------
+  const bird = new THREE.Group(); scene.add(bird);
+  const bodyPivot = new THREE.Group(); bodyPivot.position.y = 0.8; bird.add(bodyPivot);
+  const torso = new THREE.Group(); torso.position.set(0.05, 0.72, 0); torso.rotation.z = 0.18; bodyPivot.add(torso);
+
+  const bodyGeo = sideUV(new THREE.SphereGeometry(1, 7, 5)).scale(1.15, 0.85, 0.8);
+  torso.add(birdMesh(bodyGeo, mat(texBody)));
+
+  const wingGeo = sideUV(new THREE.SphereGeometry(1, 5, 3)).scale(0.72, 0.4, 0.1);
+  const mWing = mat(texWing);
+  for (const s of [-1, 1]) {
+    const w = birdMesh(wingGeo, mWing); w.position.set(-0.22, 0.14, s * 0.72); w.rotation.z = 0.08; torso.add(w);
+  }
+
+  const tail = new THREE.Group(); tail.position.set(-1.0, 0.95, 0); bodyPivot.add(tail);
+  const tailGeo = new THREE.BoxGeometry(1.05, 0.07, 0.42).translate(-0.5, 0, 0);
+  tail.add(birdMesh(tailGeo, mat(texTail)));
+
+  const head = new THREE.Group(); head.position.set(0.98, 1.42, 0); bodyPivot.add(head);
+  const headGeo = sideUV(new THREE.SphereGeometry(1, 6, 4)).scale(0.56, 0.52, 0.5);
+  head.add(birdMesh(headGeo, mat(texHead)));
+  const mBeak = mat(texPlain, { tint: 0x1a1614 });
+  const upper = birdMesh(new THREE.ConeGeometry(0.12, 0.4, 4).rotateZ(-Math.PI / 2).translate(0.2, 0, 0).scale(1, 0.6, 1), mBeak);
+  upper.position.set(0.48, 0.0, 0); upper.rotation.z = -0.12; head.add(upper);
+  const lower = birdMesh(new THREE.ConeGeometry(0.09, 0.33, 4).rotateZ(-Math.PI / 2).translate(0.165, 0, 0).scale(1, 0.4, 1), mBeak);
+  lower.position.set(0.47, -0.05, 0); lower.rotation.z = -0.18; head.add(lower);
+
+  const mLeg = mat(texPlain, { tint: 0x5b5048 });
+  const legs = [];
+  const tarsusGeo = new THREE.CylinderGeometry(0.055, 0.045, 0.85, 3).translate(0, -0.425, 0);
+  const toeGeo = new THREE.BoxGeometry(0.38, 0.04, 0.06).translate(0.17, 0, 0);
+  const backToeGeo = new THREE.BoxGeometry(0.2, 0.04, 0.06).translate(-0.09, 0, 0);
+  for (const s of [-1, 1]) {
+    const leg = new THREE.Group(); leg.position.set(0.06, 0.85, s * 0.27); bird.add(leg);
+    leg.add(birdMesh(tarsusGeo, mLeg));
+    for (const a of [-0.45, 0, 0.45]) { const t = birdMesh(toeGeo, mLeg); t.position.y = -0.83; t.rotation.y = a; leg.add(t); }
+    const bt = birdMesh(backToeGeo, mLeg); bt.position.y = -0.83; leg.add(bt);
+    legs.push(leg);
+  }
+  bird.scale.setScalar(0.62);
+
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.1).rotateX(-Math.PI / 2), mat(texShadow, { alpha: 2 }));
+  scene.add(shadow);
+
+  // ---------- Valdivian forest floor ----------
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(90, 90, 9, 9).rotateX(-Math.PI / 2), mat(texGround, { rx: 22, ry: 22 }));
+  scene.add(ground);
+
+  const W = mulberry32(42);
+  const mFern = mat(texFern, { alpha: 1, twoSided: true });
+  const fernGeo = new THREE.PlaneGeometry(1.3, 2.4).translate(0, 1.2, 0);
+  for (let i = 0; i < 38; i++) {
+    const a = W() * Math.PI * 2, r = 3 + W() * 13;
+    const f = new THREE.Group();
+    for (let k = 0; k < 3; k++) { const q = new THREE.Mesh(fernGeo, mFern); q.rotation.y = k * Math.PI / 3; q.rotation.x = 0.25 * (W() - 0.5); f.add(q); }
+    f.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+    f.scale.setScalar(0.6 + W() * 0.8); f.rotation.y = W() * 3;
+    scene.add(f);
+  }
+  const mBark = mat(texBark, { ry: 5 });
+  const trunkGeo = new THREE.CylinderGeometry(0.55, 0.8, 30, 5).translate(0, 15, 0);
+  for (let i = 0; i < 22; i++) {
+    const a = W() * Math.PI * 2, r = 8 + W() * 20;
+    const t = new THREE.Mesh(trunkGeo, mBark);
+    t.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); t.scale.setScalar(0.7 + W() * 0.9); t.rotation.y = W() * 3;
+    scene.add(t);
+  }
+  const log = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.85, 9, 6), mat(texBark, { ry: 2 }));
+  log.rotation.set(0, 0.5, Math.PI / 2); log.position.set(-1.5, 0.55, -4.2); scene.add(log);
+  const mCane = mat(texCane, { ry: 3 });
+  const caneGeo = new THREE.CylinderGeometry(0.05, 0.06, 7, 3).translate(0, 3.5, 0);
+  for (let c = 0; c < 3; c++) {
+    const cx = [5, -6, 2][c], cz = [-3, 2, 6][c];
+    for (let i = 0; i < 9; i++) {
+      const m = new THREE.Mesh(caneGeo, mCane);
+      m.position.set(cx + (W() - 0.5) * 1.2, 0, cz + (W() - 0.5) * 1.2);
+      m.rotation.set((W() - 0.5) * 0.5, 0, (W() - 0.5) * 0.5); m.scale.y = 0.6 + W() * 0.6;
+      scene.add(m);
+    }
+  }
+  const mRock = mat(texRock);
+  const rockGeo = new THREE.IcosahedronGeometry(1, 0);
+  for (const [x, z, s] of [[2.6, -2.2, 0.6], [-3.2, -1.0, 0.45], [3.6, 2.8, 0.8], [-2.2, 3.4, 0.5]]) {
+    const r = new THREE.Mesh(rockGeo, mRock); r.position.set(x, s * 0.3, z); r.scale.set(s, s * 0.7, s * 1.1); r.rotation.y = x; scene.add(r);
+  }
+
+  // ---------- song (lo-fi synth) ----------
+  const NOTES = [
+    { t: 0.00, d: 0.10, f0: 1150, f1: 900 }, { t: 0.16, d: 0.10, f0: 1110, f1: 870 },
+    { t: 0.31, d: 0.10, f0: 1070, f1: 840 }, { t: 0.45, d: 0.10, f0: 1030, f1: 810 },
+    { t: 0.59, d: 0.09, f0: 990, f1: 790 }, { t: 0.73, d: 0.12, f0: 1260, f1: 960 },
+    { t: 0.91, d: 0.34, f0: 1120, f1: 640, gurgle: true },
+  ];
+  const SONG_LEN = 1.35;
+  let ac = null;
+  function playSong() {
+    if (!ac) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      try { ac = new AC({ sampleRate: 11025 }); } catch (e) { ac = new AC(); }
+    }
+    ac.resume();
+    const t0 = ac.currentTime + 0.03;
+    const out = ac.createGain(); out.gain.value = 0.22;
+    const crush = ac.createWaveShaper();
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < 1024; i++) curve[i] = Math.round((i / 1023 * 2 - 1) * 6) / 6;
+    crush.curve = curve;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400;
+    crush.connect(lp); lp.connect(out); out.connect(ac.destination);
+    for (const n of NOTES) {
+      const s = t0 + n.t, e = s + n.d;
+      const o = ac.createOscillator(); o.type = 'square';
+      o.frequency.setValueAtTime(n.f0, s); o.frequency.exponentialRampToValueAtTime(n.f1, e);
+      const g = ac.createGain(); g.gain.setValueAtTime(0, s); g.gain.linearRampToValueAtTime(0.9, s + 0.012); g.gain.setValueAtTime(0.9, e - 0.03); g.gain.linearRampToValueAtTime(0, e);
+      if (n.gurgle) {
+        const l = ac.createOscillator(); l.frequency.value = 34; const lg = ac.createGain(); lg.gain.value = 90;
+        l.connect(lg); lg.connect(o.frequency); l.start(s); l.stop(e);
+      }
+      o.connect(g); g.connect(crush); o.start(s); o.stop(e + 0.02);
+    }
+  }
+
+  // ---------- behaviour (simulated at 15 Hz when "stepped") ----------
+  const B = { pos: new THREE.Vector3(), y: 0, heading: 0.4, state: 'idle', t: 0, dur: 1.5, hops: 0, from: new THREE.Vector3(), to: new THREE.Vector3(), target: new THREE.Vector3(), flick: 0, headYaw: 0, headPitch: 0, nextLook: 0.6, sinceSong: 0, k: 0, noteAmp: 0 };
+  const HOP = 0.3;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  function setState(s, dur = 0) { B.state = s; B.t = 0; B.dur = dur; }
+  function startHop() {
+    B.from.copy(B.pos);
+    const d = B.target.clone().sub(B.pos); d.y = 0;
+    const len = d.length();
+    if (len < 0.05) { setState('idle', rnd(1, 2.5)); return; }
+    d.multiplyScalar(Math.min(0.42, len) / len);
+    B.to.copy(B.pos).add(d);
+    B.heading = Math.atan2(-d.z, d.x);
+    B.headYaw = 0; B.headPitch = 0;
+    setState('hop', HOP);
+  }
+  function chooseNext() {
+    const r = Math.random();
+    if (r < 0.5) {
+      const a = rnd(0, Math.PI * 2), rr = rnd(0, 2.6);
+      B.target.set(Math.cos(a) * rr, 0, Math.sin(a) * rr);
+      B.hops = Math.min(7, Math.ceil(B.target.distanceTo(B.pos) / 0.42));
+      startHop();
+    } else if (r < 0.78) setState('peck', 0.9);
+    else if (r < 0.9 && B.sinceSong > 14) sing(ac && ac.state === 'running');
+    else setState('idle', rnd(0.8, 2.2));
+  }
+  function sing(withSound) {
+    if (withSound) playSong();
+    B.sinceSong = 0; B.headYaw = 0;
+    setState('sing', SONG_LEN);
+  }
+
+  function sim(dt) {
+    B.t += dt; B.sinceSong += dt;
+    B.flick = Math.max(0, B.flick - dt * 4);
+    B.nextLook -= dt;
+    if (B.nextLook <= 0 && (B.state === 'idle' || B.state === 'peck')) {
+      B.headYaw = rnd(-0.75, 0.75); B.headPitch = rnd(-0.12, 0.2); B.nextLook = rnd(0.35, 1.5);
+      if (Math.random() < 0.45) B.flick = 1;
+    }
+    B.y = 0; B.k = 0; B.noteAmp = 0;
+    if (B.state === 'idle') { if (B.t > B.dur) chooseNext(); }
+    else if (B.state === 'hop') {
+      const k = B.t / HOP;
+      if (k >= 1) { B.pos.copy(B.to); B.hops--; if (B.hops > 0) startHop(); else { setState('idle', rnd(1, 3)); B.flick = 1; } }
+      else { B.pos.lerpVectors(B.from, B.to, k); B.y = 0.28 * Math.sin(Math.PI * k); B.k = k; }
+    } else if (B.state === 'peck') {
+      B.k = B.t / B.dur;
+      if (B.k >= 1) setState('idle', rnd(0.6, 2));
+    } else if (B.state === 'sing') {
+      for (const n of NOTES) if (B.t >= n.t && B.t < n.t + n.d) { B.noteAmp = 1; if (B.t - n.t < dt) B.flick = 1; }
+      if (B.t > SONG_LEN) { setState('idle', rnd(1.5, 3)); omen(); }
+    }
+    pose();
+  }
+
+  function pose() {
+    bird.position.set(B.pos.x, B.y, B.pos.z);
+    bird.rotation.y = B.heading;
+    const hopK = B.state === 'hop' ? Math.sin(Math.PI * B.k) : 0;
+    for (const l of legs) l.rotation.z = -0.7 * hopK;
+    let bodyTilt = 0, headTilt = B.headPitch, open = 0, puff = 1;
+    if (B.state === 'peck') {
+      const tri = B.k < 0.5 ? B.k * 2 : (1 - B.k) * 2;
+      const jab = Math.abs(Math.sin(B.k * Math.PI * 3));
+      bodyTilt = -0.4 * tri; headTilt = -0.9 * jab * tri - 0.2;
+    } else if (B.state === 'sing') {
+      bodyTilt = 0.12; headTilt = 0.5; open = 0.4 * B.noteAmp; puff = 1 + 0.08 * B.noteAmp;
+    }
+    bodyPivot.rotation.z = bodyTilt + 0.1 * hopK;
+    head.rotation.y = B.headYaw;
+    head.rotation.z = headTilt;
+    lower.rotation.z = -0.18 - open;
+    upper.rotation.z = -0.12 + open * 0.3;
+    torso.scale.set(puff, puff, puff);
+    tail.rotation.z = -1.1 - 0.4 * B.flick + 0.35 * hopK;
+    shadow.position.set(B.pos.x + 0.05, 0.03, B.pos.z);
+    shadow.scale.setScalar(1 - B.y * 0.9);
+  }
+
+  // right or left of the viewer decides the omen
+  let dialogTimer = 0;
+  const v3 = new THREE.Vector3();
+  function omen() {
+    v3.copy(bird.position).project(camera);
+    let msg;
+    if (v3.x > 0.15) msg = 'El chucao cantó a tu <b>derecha</b>. Buen augurio: sigue tu camino.';
+    else if (v3.x < -0.15) msg = 'El chucao cantó a tu <b>izquierda</b>. Mal augurio: mejor volver.';
+    else msg = 'El chucao cantó <b>de frente</b>. El bosque no dice nada todavía.';
+    dialog.innerHTML = msg; dialog.hidden = false;
+    clearTimeout(dialogTimer); dialogTimer = setTimeout(() => { dialog.hidden = true; }, 4200);
+  }
+
+  // ---------- camera ----------
+  const cam = { yaw: 0.9, pitch: 0.3, dist: 4.6, target: new THREE.Vector3(0, 0.8, 0) };
+  let drag = null;
+  canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointermove', e => {
+    if (!drag) return;
+    cam.yaw -= (e.clientX - drag.x) * 0.008;
+    cam.pitch = Math.min(1.2, Math.max(0.04, cam.pitch + (e.clientY - drag.y) * 0.006));
+    drag = { x: e.clientX, y: e.clientY };
+  });
+  const endDrag = () => { drag = null; };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('wheel', e => { e.preventDefault(); cam.dist = Math.min(12, Math.max(2.4, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); }, { passive: false });
+
+  function updateCamera(dt) {
+    if (S.auto && !drag) cam.yaw += dt * 0.1;
+    const goal = new THREE.Vector3(B.pos.x, 0.75, B.pos.z);
+    cam.target.lerp(goal, 1 - Math.exp(-dt * 2));
+    const cp = Math.cos(cam.pitch);
+    camera.position.set(cam.target.x + cp * Math.sin(cam.yaw) * cam.dist, cam.target.y + Math.sin(cam.pitch) * cam.dist, cam.target.z + cp * Math.cos(cam.yaw) * cam.dist);
+    camera.lookAt(cam.target);
+    camera.updateMatrixWorld();
+    shared.uLightDir.value.set(0.45, 1, 0.35).normalize().transformDirection(camera.matrixWorldInverse);
+  }
+
+  // ---------- resolution + options ----------
+  function applyRes() {
+    const h = RES[S.res], w = Math.round(h * 4 / 3);
+    renderer.setSize(w, h, false);
+    shared.uSnap.value.set(w / 2, h / 2);
+    tagEl.textContent = `${w}×${h} · ${S.stepped ? '15' : '60'} fps anim`;
+  }
+  function applyFlags() {
+    shared.uJitter.value = S.jitter ? 1 : 0;
+    shared.uAffine.value = S.affine ? 1 : 0;
+    shared.uDither.value = S.dither ? 1 : 0;
+    applyRes();
+  }
+  const OPTS = [
+    { id: 'res', label: 'Resolución', val: () => `${RES[S.res]}p`, on: () => true, act: () => { S.res = (S.res + 1) % RES.length; } },
+    { id: 'jitter', label: 'Vértices temblorosos', bool: true },
+    { id: 'affine', label: 'Texturas afines', bool: true },
+    { id: 'dither', label: 'Color 15 bits + trama', bool: true },
+    { id: 'stepped', label: 'Animación a 15 fps', bool: true },
+    { id: 'auto', label: 'Cámara automática', bool: true },
+    { id: 'sing', label: 'Hacer cantar', val: () => '♪', on: () => true, act: () => { if (B.state !== 'hop') sing(true); else { B.hops = 1; B.sinceSong = 99; pendingSing = true; } }, cls: 'act' },
+  ];
+  let pendingSing = false;
+  const ul = document.getElementById('opts');
+  function renderOpts() {
+    ul.innerHTML = '';
+    for (const o of OPTS) {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.className = 'opt' + (o.cls ? ' ' + o.cls : ''); b.id = 'opt-' + o.id; b.type = 'button';
+      const on = o.bool ? S[o.id] : o.on();
+      const val = o.bool ? (S[o.id] ? 'SÍ' : 'NO') : o.val();
+      b.innerHTML = `<span class="cur">▶</span><span>${o.label}</span><span class="val${on ? '' : ' off'}">${val}</span>`;
+      b.addEventListener('click', () => {
+        if (o.bool) S[o.id] = !S[o.id]; else o.act();
+        applyFlags(); renderOpts(); document.getElementById('opt-' + o.id).focus();
+      });
+      li.appendChild(b); ul.appendChild(li);
+    }
+  }
+  renderOpts(); applyFlags();
+  document.getElementById('stats').textContent = `Modelo: ${birdTris} triángulos · ${texCount} texturas · VRAM ${(vramBytes / 1024).toFixed(1)} de 1024 KB`;
+
+  // ---------- loop ----------
+  const STEP = 1 / 15;
+  let last = performance.now(), acc = 0;
+  pose();
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    if (pendingSing && B.state !== 'hop') { pendingSing = false; sing(true); }
+    if (S.stepped) { acc += dt; let n = 0; while (acc >= STEP && n++ < 4) { sim(STEP); acc -= STEP; } }
+    else sim(dt);
+    updateCamera(dt);
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>

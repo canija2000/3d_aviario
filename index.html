@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aviario de Chile</title>
+<meta name="description" content="Un mundo 3D de baja resolución para recorrer las regiones de Chile y encontrarse con las aves que realmente se registran ahí, mes a mes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Pixelify+Sans:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="c" aria-label="Mundo 3D de aves de Chile"></canvas>
+
+<!-- PRESS START -->
+<div id="start" class="screen">
+  <h1>AVIARIO<small>de Chile</small></h1>
+  <p class="blink">PRESS START</p>
+  <p class="hint">clic o Enter · activa el sonido</p>
+</div>
+
+<!-- HUD -->
+<div id="hud" hidden>
+  <div class="win hud-place">
+    <div id="hud-region"></div>
+    <div id="hud-scene" class="dim"></div>
+  </div>
+  <div class="win hud-time">
+    <svg id="wheel" viewBox="-22 -22 44 44" width="56" height="56" aria-hidden="true"></svg>
+    <div>
+      <div id="hud-month"></div>
+      <div id="hud-rich" class="dim"></div>
+    </div>
+  </div>
+  <div class="win hud-live" id="live">
+    <button class="live-head" id="live-toggle" aria-expanded="true">EN ESTE RINCÓN <span id="live-n"></span> <span class="chev">▾</span></button>
+    <div id="live-body"></div>
+  </div>
+  <div class="hud-buttons">
+    <button class="btn" id="b-pause" title="Pausar el tiempo">⏸</button>
+    <button class="btn" id="b-next" title="Mes siguiente">⏭</button>
+    <button class="btn" id="b-map" title="Mapa de la región">MAPA</button>
+    <button class="btn" id="b-book" title="Libreta de campo">LIBRETA <span id="book-n">0</span></button>
+    <button class="btn" id="b-sound" title="Silenciar">♪</button>
+    <button class="btn" id="b-credits" title="Créditos">i</button>
+  </div>
+</div>
+
+<div id="tip" class="tip" hidden></div>
+<div id="toast" class="win toast" hidden></div>
+<div id="dialog" class="win dialog" hidden><div class="dlg-row"><div id="dialog-portrait" hidden></div><div id="dialog-text"></div></div><div id="dialog-actions"></div></div>
+<div id="panel" class="win panel" hidden><button class="btn close" id="panel-close">✕</button><div id="panel-body"></div></div>
+<div id="fade" class="fade"><div id="fade-text"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

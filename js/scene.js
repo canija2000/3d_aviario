@@ -1,0 +1,251 @@
+// Mini-escena ("cuarto") de una región: terreno desde terrain-<CODE>.json (relieve real, cobertura
+// ESA WorldCover, ríos OSM), vegetación según props-<CODE>.json y senderos hacia los otros cuartos.
+/* global THREE */
+import { mat, makeTex, makeVary, mulberry32, texPlain } from './ps1.js';
+
+export const WORLD = 64; // unidades de mundo por lado (48 celdas)
+const MAX_RELIEF = 15; // unidades: exageración vertical acotada para que el diorama sea caminable
+
+const COVER_RGB = [
+  [[52, 84, 36], [74, 104, 44]], // árboles
+  [[96, 100, 52], [120, 104, 64]], // matorral
+  [[132, 136, 64], [150, 146, 80]], // pastizal
+  [[150, 140, 72], [128, 120, 60]], // cultivo
+  [[112, 108, 104], [92, 88, 86]], // urbano
+  [[128, 112, 92], [104, 92, 80]], // suelo desnudo
+  [[224, 228, 236], [200, 208, 220]], // nieve
+  [[40, 72, 120], [64, 100, 150]], // agua
+  [[56, 104, 84], [72, 120, 92]], // humedal
+  [[120, 140, 110], [100, 120, 96]], // musgo/líquen
+];
+
+const plainTex = texPlain();
+
+function rasterRivers(rivers, n, k) {
+  const set = new Map();
+  for (const r of rivers) {
+    const w = r.type === 'river' ? 2 : 1;
+    for (let i = 1; i < r.path.length; i++) {
+      const [x0, y0] = r.path[i - 1], [x1, y1] = r.path[i];
+      const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * k * 2) + 1;
+      for (let s = 0; s <= steps; s++) {
+        const x = (x0 + (x1 - x0) * s / steps) * k, y = (y0 + (y1 - y0) * s / steps) * k;
+        for (let dx = 0; dx < w; dx++) for (let dy = 0; dy < w; dy++) set.set(`${Math.floor(x) + dx},${Math.floor(y) + dy}`, r.type);
+      }
+    }
+  }
+  return set;
+}
+
+// ---- props: cada tipo es una lista de partes [geometría, material, transformación local] ----
+function propKinds(R) {
+  const vary = makeVary(R);
+  const leaf = (base) => makeTex(16, 16, () => vary(R() < 0.25 ? base.map(v => v * 0.7) : base, 14));
+  const bark = makeTex(8, 16, (x, y) => vary(x % 3 === 0 ? [48, 36, 26] : [84, 64, 44], 8));
+  const rock = makeTex(16, 16, () => vary(R() < 0.4 ? [110, 108, 100] : [140, 136, 126], 10));
+  const flowerTex = makeTex(16, 16, (x, y) => {
+    const d = Math.hypot(x - 7.5, y - 7.5);
+    if (d < 2) return [240, 220, 60];
+    if (d < 6 && (Math.atan2(y - 7.5, x - 7.5) * 5 / Math.PI | 0) % 2 === 0) return [220, 60, 90];
+    return [0, 0, 0, 0];
+  });
+  const grassTex = makeTex(16, 32, (x, y) => (x % 3 === 0 && y > (x * 7) % 12) ? vary([170, 160, 80], 16) : [0, 0, 0, 0]);
+  const reedTex = makeTex(16, 32, (x, y) => (x % 4 === 1 && y > 2) ? vary(y < 6 ? [100, 70, 40] : [80, 120, 50], 10) : [0, 0, 0, 0]);
+  const windowTex = makeTex(16, 16, (x, y) => (x % 4 > 0 && y % 4 > 1) ? vary([180, 190, 170], 12) : vary([150, 140, 128], 6));
+  const signTex = makeTex(8, 8, () => vary([120, 84, 48], 8));
+  const m = (t, o = {}) => mat(t, { ...o, cutaway: true });
+  const crown = (c) => m(leaf(c), { snowable: true });
+  const trunk = (h, r = 0.18) => [new THREE.CylinderGeometry(r * 0.8, r, h, 5).translate(0, h / 2, 0), m(bark)];
+  const blob = (r, y, sy, c) => [new THREE.IcosahedronGeometry(r, 0).scale(1, sy, 1).translate(0, y, 0), crown(c), 'crown'];
+  const cross = (w, h, t) => {
+    const g = new THREE.PlaneGeometry(w, h).translate(0, h / 2, 0);
+    const g2 = g.clone().rotateY(Math.PI / 2);
+    return [[g, m(t, { alpha: 1, twoSided: true })], [g2, m(t, { alpha: 1, twoSided: true })]];
+  };
+  return {
+    platano_oriental: { parts: [trunk(3.2, 0.22), blob(1.9, 3.8, 0.8, [80, 116, 48])], perch: 4.9, deciduous: true },
+    palma_chilena: { parts: [trunk(4.5, 0.3), [new THREE.ConeGeometry(1.6, 0.9, 7, 1, true).translate(0, 4.6, 0), m(leaf([70, 100, 50]), { twoSided: true })]], perch: 4.9 },
+    pimiento: { parts: [trunk(2, 0.2), blob(1.5, 2.6, 0.9, [96, 124, 64])], perch: 3.6 },
+    quillay: { parts: [trunk(2.2, 0.2), blob(1.5, 2.9, 0.85, [58, 86, 44])], perch: 3.9 },
+    litre: { parts: [trunk(1.6, 0.18), blob(1.3, 2.2, 0.8, [72, 92, 40])], perch: 3.0 },
+    peumo: { parts: [trunk(2.4, 0.22), blob(1.7, 3.2, 0.9, [44, 76, 40])], perch: 4.4 },
+    maiten: { parts: [trunk(2.4, 0.18), blob(1.4, 3.2, 1.1, [84, 112, 56])], perch: 4.2 },
+    sauce_chileno: { parts: [trunk(2.6, 0.2), [new THREE.ConeGeometry(1.4, 3.2, 6).translate(0, 3.2, 0), crown([96, 132, 64]), 'crown']], perch: 4.6 },
+    espino: { parts: [trunk(0.7, 0.1), blob(1.0, 1.2, 0.7, [104, 108, 52])], perch: 1.8 },
+    boldo: { parts: [blob(0.9, 0.7, 0.9, [70, 96, 52])], perch: 1.5 },
+    zarzamora: { parts: [blob(0.9, 0.5, 0.6, [64, 88, 44])], perch: 1.0 },
+    quisco: { parts: [[new THREE.CylinderGeometry(0.2, 0.22, 1.8, 6).translate(0, 0.9, 0), m(leaf([80, 110, 70]))],
+      [new THREE.CylinderGeometry(0.14, 0.14, 0.8, 6).rotateZ(0.5).translate(0.35, 1.1, 0), m(leaf([80, 110, 70]))]], perch: 1.9 },
+    roca: { parts: [[new THREE.IcosahedronGeometry(0.7, 0).scale(1, 0.6, 1.1).translate(0, 0.25, 0), m(rock, { snowable: true })]], perch: 0.7 },
+    roca_cerro: { parts: [[new THREE.IcosahedronGeometry(0.9, 0).scale(1, 0.8, 1).translate(0, 0.4, 0), m(rock, { snowable: true })]], perch: 1.1 },
+    bolones: { parts: [[new THREE.IcosahedronGeometry(0.45, 0).scale(1, 0.6, 1).translate(0, 0.15, 0), m(rock)]], perch: 0.45 },
+    roca_andina: { parts: [[new THREE.IcosahedronGeometry(0.9, 0).scale(1.2, 0.7, 1).translate(0, 0.3, 0), m(rock, { snowable: true })]], perch: 0.9 },
+    llareta: { parts: [[new THREE.SphereGeometry(0.7, 6, 3, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.5, 1), m(leaf([100, 150, 60]), { snowable: true })]], perch: 0.4 },
+    hierba_blanca: { parts: [blob(0.5, 0.35, 0.7, [150, 150, 110])], perch: 0.7 },
+    coiron: { parts: cross(0.9, 0.8, grassTex) },
+    totora: { parts: cross(0.8, 1.8, reedTex) },
+    flores_altura: { parts: [[new THREE.PlaneGeometry(0.6, 0.6).rotateX(-Math.PI / 2).translate(0, 0.25, 0), m(flowerTex, { alpha: 1, twoSided: true })],
+      ...cross(0.5, 0.5, flowerTex)], flower: true },
+    banca_farol: { parts: [[new THREE.BoxGeometry(1.2, 0.12, 0.4).translate(0, 0.45, 0), m(signTex)],
+      [new THREE.CylinderGeometry(0.05, 0.05, 2.4, 4).translate(0.9, 1.2, 0), m(plainTex, { tint: 0x303030 })],
+      [new THREE.BoxGeometry(0.25, 0.2, 0.25).translate(0.9, 2.45, 0), m(plainTex, { tint: 0xf0e0a0 })]], perch: 2.5 },
+    edificio: { parts: [[new THREE.BoxGeometry(1.8, 1, 1.8).translate(0, 0.5, 0), m(windowTex, { rx: 1, ry: 3 })]], perch: 0, building: true },
+  };
+}
+
+// Densidad por celda (probabilidad) según el tipo de prop del catálogo.
+const DENSITY = { arbol: 0.12, arbusto: 0.2, cactus: 0.05, roca: 0.05, junco: 0.3, pasto: 0.25, cojin: 0.08, flor: 0.06, objeto: 0.015, edificio: 0.18 };
+// Legibilidad del diorama (aplica a todas las escenas y regiones futuras):
+// - SCENE_DENSITY escala la densidad total por escena (1 = lo que dice la cobertura real).
+// - Claro central: dentro de CLEAR_R la densidad cae a CLEAR_MIN y sube suave hasta CLEAR_R2.
+// - Senderos: franja de PATH_W unidades sin props desde el centro a cada salida.
+// - MAX_PER_KIND: tope de instancias por tipo de prop.
+export const SCENE_DENSITY = { ciudad: 0.55, matorral: 0.45, rio: 0.5, cordillera: 1 };
+const CLEAR_R = 7, CLEAR_R2 = 18, CLEAR_MIN = 0.1, PATH_W = 2.2, MAX_PER_KIND = 70, BUILDING_CLEAR = 15;
+
+const segDist = (px, pz, ax, az, bx, bz) => {
+  const abx = bx - ax, abz = bz - az;
+  const t = Math.max(0, Math.min(1, ((px - ax) * abx + (pz - az) * abz) / (abx * abx + abz * abz)));
+  return Math.hypot(px - ax - abx * t, pz - az - abz * t);
+};
+
+// exitAngles: dirección (rad) de cada sendero desde el centro; exitR: distancia del letrero.
+export function buildScene(key, data, props, exitAngles = [], exitR = 20) {
+  const n = data.height.length ** 0.5 | 0;
+  const cell = WORLD / n;
+  const unitPerM = cell / data.cellM;
+  const range = data.hMax - data.hMin;
+  const vex = Math.min(1.3, MAX_RELIEF / Math.max(1, range * unitPerM));
+  const hScale = unitPerM * vex;
+  const H = data.height.map(h => h * hScale);
+  const cover = data.cover;
+  const root = new THREE.Group();
+  const R = mulberry32(key.length * 7919 + 17);
+  const vary = makeVary(R);
+
+  const paths = exitAngles.map(a => [0, 0, Math.cos(a) * exitR, Math.sin(a) * exitR]);
+  const onPath = (x, z, w = PATH_W) => paths.some(p => segDist(x, z, ...p) < w || Math.hypot(x - p[2], z - p[3]) < w + 3);
+  // ---- terreno ----
+  const K = 4;
+  const riv = rasterRivers(data.rivers, n, K);
+  const tex = makeTex(n * K, n * K, (x, y) => {
+    const rt = riv.get(`${x},${y}`);
+    if (rt) return vary(rt === 'canal' ? [70, 100, 130] : [56, 96, 150], 10);
+    const wx = (x + 0.5) / K * (WORLD / n) - WORLD / 2, wz = (y + 0.5) / K * (WORLD / n) - WORLD / 2;
+    if (onPath(wx, wz, 0.7) || Math.hypot(wx, wz) < 1.6) return vary(R() < 0.2 ? [150, 128, 92] : [172, 148, 108], 8); // sendero
+    const c = cover[(y / K | 0) * n + (x / K | 0)];
+    const pal = COVER_RGB[c] || COVER_RGB[5];
+    if (c === 4 && (x % 8 === 0 || y % 8 === 0)) return vary([72, 70, 70], 4); // calles
+    if (c === 3 && x % 3 === 0) return vary([110, 100, 50], 6); // surcos
+    return vary(R() < 0.3 ? pal[1] : pal[0], 10);
+  });
+  const geo = new THREE.PlaneGeometry(WORLD, WORLD, n - 1, n - 1).rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) pos.setY(i, H[i]);
+  geo.computeVertexNormals();
+  const groundMat = mat(tex, { snowable: true });
+  const ground = new THREE.Mesh(geo, groundMat);
+  root.add(ground);
+  const half = WORLD / 2;
+  const step = WORLD / (n - 1);
+
+  function heightAt(x, z) {
+    const gx = Math.max(0, Math.min(n - 1.001, (x + half) / step));
+    const gz = Math.max(0, Math.min(n - 1.001, (z + half) / step));
+    const ix = gx | 0, iz = gz | 0, fx = gx - ix, fz = gz - iz;
+    const h = (r, q) => H[r * n + q];
+    return h(iz, ix) * (1 - fx) * (1 - fz) + h(iz, ix + 1) * fx * (1 - fz) + h(iz + 1, ix) * (1 - fx) * fz + h(iz + 1, ix + 1) * fx * fz;
+  }
+  function coverAt(x, z) {
+    const q = Math.max(0, Math.min(n - 1, ((x + half) / cell) | 0));
+    const r = Math.max(0, Math.min(n - 1, ((z + half) / cell) | 0));
+    return cover[r * n + q];
+  }
+  const cellCenter = i => [(i % n + 0.5) * cell - half, ((i / n | 0) + 0.5) * cell - half];
+
+  // ---- props ----
+  const kinds = propKinds(R);
+  const perches = [], flowers = [], crowns = [], obstacles = [];
+  const EXIT_CLEAR = 3.5;
+  const catalog = (props?.[key] || []).filter(p => kinds[p.id]);
+  if (key === 'ciudad') catalog.push({ id: 'edificio', tipo: 'edificio', cover: [4] });
+  const instances = new Map(); // id → [matrix]
+  const place = (id, x, z, s, rot) => {
+    const y = heightAt(x, z);
+    const mtx = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z),
+      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rot), new THREE.Vector3(s.x ?? s, s.y ?? s, s.z ?? s));
+    if (!instances.has(id)) instances.set(id, []);
+    instances.get(id).push(mtx);
+    const k = kinds[id];
+    if (k.perch) perches.push(new THREE.Vector3(x, y + k.perch * (s.y ?? s), z));
+    if (k.flower) flowers.push(new THREE.Vector3(x, y + 0.5, z));
+    if (k.building) obstacles.push({ x, z, r: 1.3 * (s.x ?? s) });
+  };
+  const exits = [];
+  const count = {};
+  const dScene = SCENE_DENSITY[key] ?? 1;
+  for (let i = 0; i < n * n; i++) {
+    const [cx, cz] = cellCenter(i);
+    const rc = Math.hypot(cx, cz);
+    if (rc > half - 1.5) continue;
+    const c = cover[i];
+    const clear = rc < CLEAR_R ? CLEAR_MIN : rc < CLEAR_R2 ? CLEAR_MIN + (1 - CLEAR_MIN) * (rc - CLEAR_R) / (CLEAR_R2 - CLEAR_R) : 1;
+    for (const p of catalog) {
+      if (!p.cover.includes(c)) continue;
+      if ((count[p.id] ?? 0) >= MAX_PER_KIND) continue;
+      if (p.tipo === 'edificio' && rc < BUILDING_CLEAR) continue;
+      const d = (DENSITY[p.tipo] ?? 0.05) * dScene * clear;
+      if (R() > d) continue;
+      const x = cx + (R() - 0.5) * cell * 0.8, z = cz + (R() - 0.5) * cell * 0.8;
+      if (Math.hypot(x, z) < 2.2 || onPath(x, z, p.tipo === 'edificio' ? PATH_W + 1.5 : PATH_W)) continue;
+      count[p.id] = (count[p.id] ?? 0) + 1;
+      const s = p.tipo === 'edificio' ? { x: 0.8 + R() * 0.4, y: 1.5 + R() * 2.5, z: 0.8 + R() * 0.4 } : 0.7 + R() * 0.6;
+      place(p.id, x, z, s, R() * Math.PI * 2);
+    }
+  }
+  for (const [id, list] of instances) {
+    for (const part of kinds[id].parts) {
+      const [g, m, tag] = part;
+      const im = new THREE.InstancedMesh(g, m, list.length);
+      list.forEach((mtx, j) => im.setMatrixAt(j, mtx));
+      im.frustumCulled = false;
+      root.add(im);
+      if (tag === 'crown') crowns.push({ im, id, mat: m, base: m.uniforms.uTint.value.clone(), deciduous: !!kinds[id].deciduous });
+    }
+  }
+
+  // ---- temporada: luz, pasto seco en verano, hojas caducas, nieve ----
+  function setSeason(season, month) {
+    const dry = { verano: 1, 'otoño': 0.6, invierno: 0, primavera: 0.2 }[season];
+    groundMat.uniforms.uTint.value.setRGB(1 + dry * 0.12, 1 + dry * 0.02, 1 - dry * 0.12);
+    for (const c of crowns) {
+      c.im.visible = true;
+      if (!c.deciduous) continue;
+      if (season === 'otoño') c.mat.uniforms.uTint.value.setRGB(1.8, 1.2, 0.5);
+      else if (season === 'invierno') c.im.visible = false;
+      else c.mat.uniforms.uTint.value.copy(c.base);
+    }
+    const snowBy = { cordillera: { invierno: 0.85, 'otoño': 0.25, primavera: 0.5, verano: 0.05 },
+      matorral: { invierno: month === 6 ? 0.15 : 0 } };
+    return snowBy[key]?.[season] ?? 0;
+  }
+
+  return { root, heightAt, coverAt, perches, flowers, obstacles, exits, setSeason, half, cell, n, groundMat, ground };
+}
+
+// Letrero de sendero con texto pixelado.
+export function signpost() {
+  // tablero de madera con una flecha; el nombre del destino va como etiqueta HTML (main.js)
+  const t = makeTex(32, 8, (x, y) => {
+    if (y === 0 || y === 7) return [58, 36, 18];
+    if (y >= 3 && y <= 4 && x >= 6 && x <= 22) return [244, 236, 208];
+    if (x >= 22 && x <= 26 && Math.abs(y - 3.5) <= 26 - x) return [244, 236, 208];
+    return x % 7 === 0 ? [100, 70, 40] : [122, 84, 48];
+  });
+  const grp = new THREE.Group();
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.8, 0.16).translate(0, 0.9, 0), mat(plainTex, { tint: 0x5a3c22 }));
+  const board = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.6, 0.08).translate(0, 1.55, 0), mat(t, { twoSided: false }));
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6).rotateY(Math.PI).translate(0, 1.55, -0.041), mat(t));
+  grp.add(post, board, back);
+  return grp;
+}
