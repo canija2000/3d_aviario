@@ -7,7 +7,7 @@
 <meta name="description" content="Un mundo 3D de baja resolución para recorrer las regiones de Chile y encontrarse con las aves que realmente se registran ahí, mes a mes.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Pixelify+Sans:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -33,6 +33,10 @@
       <div id="hud-rich" class="dim"></div>
     </div>
   </div>
+  <div class="win hud-live" id="live">
+    <button class="live-head" id="live-toggle" aria-expanded="true">EN ESTE RINCÓN <span id="live-n"></span> <span class="chev">▾</span></button>
+    <div id="live-body"></div>
+  </div>
   <div class="hud-buttons">
     <button class="btn" id="b-pause" title="Pausar el tiempo">⏸</button>
     <button class="btn" id="b-next" title="Mes siguiente">⏭</button>
@@ -45,7 +49,7 @@
 
 <div id="tip" class="tip" hidden></div>
 <div id="toast" class="win toast" hidden></div>
-<div id="dialog" class="win dialog" hidden><div id="dialog-text"></div><div id="dialog-actions"></div></div>
+<div id="dialog" class="win dialog" hidden><div class="dlg-row"><div id="dialog-portrait" hidden></div><div id="dialog-text"></div></div><div id="dialog-actions"></div></div>
 <div id="panel" class="win panel" hidden><button class="btn close" id="panel-close">✕</button><div id="panel-body"></div></div>
 <div id="fade" class="fade"><div id="fade-text"></div></div>
 

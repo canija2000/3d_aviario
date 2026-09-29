@@ -53,7 +53,7 @@ function propKinds(R) {
   const reedTex = makeTex(16, 32, (x, y) => (x % 4 === 1 && y > 2) ? vary(y < 6 ? [100, 70, 40] : [80, 120, 50], 10) : [0, 0, 0, 0]);
   const windowTex = makeTex(16, 16, (x, y) => (x % 4 > 0 && y % 4 > 1) ? vary([180, 190, 170], 12) : vary([150, 140, 128], 6));
   const signTex = makeTex(8, 8, () => vary([120, 84, 48], 8));
-  const m = (t, o) => mat(t, o);
+  const m = (t, o = {}) => mat(t, { ...o, cutaway: true });
   const crown = (c) => m(leaf(c), { snowable: true });
   const trunk = (h, r = 0.18) => [new THREE.CylinderGeometry(r * 0.8, r, h, 5).translate(0, h / 2, 0), m(bark)];
   const blob = (r, y, sy, c) => [new THREE.IcosahedronGeometry(r, 0).scale(1, sy, 1).translate(0, y, 0), crown(c), 'crown'];
@@ -94,9 +94,23 @@ function propKinds(R) {
 }
 
 // Densidad por celda (probabilidad) según el tipo de prop del catálogo.
-const DENSITY = { arbol: 0.12, arbusto: 0.2, cactus: 0.05, roca: 0.05, junco: 0.3, pasto: 0.25, cojin: 0.08, flor: 0.06, objeto: 0.015 };
+const DENSITY = { arbol: 0.12, arbusto: 0.2, cactus: 0.05, roca: 0.05, junco: 0.3, pasto: 0.25, cojin: 0.08, flor: 0.06, objeto: 0.015, edificio: 0.18 };
+// Legibilidad del diorama (aplica a todas las escenas y regiones futuras):
+// - SCENE_DENSITY escala la densidad total por escena (1 = lo que dice la cobertura real).
+// - Claro central: dentro de CLEAR_R la densidad cae a CLEAR_MIN y sube suave hasta CLEAR_R2.
+// - Senderos: franja de PATH_W unidades sin props desde el centro a cada salida.
+// - MAX_PER_KIND: tope de instancias por tipo de prop.
+export const SCENE_DENSITY = { ciudad: 0.55, matorral: 0.45, rio: 0.5, cordillera: 1 };
+const CLEAR_R = 7, CLEAR_R2 = 18, CLEAR_MIN = 0.1, PATH_W = 2.2, MAX_PER_KIND = 70, BUILDING_CLEAR = 15;
 
-export function buildScene(key, data, props, legendLen, season) {
+const segDist = (px, pz, ax, az, bx, bz) => {
+  const abx = bx - ax, abz = bz - az;
+  const t = Math.max(0, Math.min(1, ((px - ax) * abx + (pz - az) * abz) / (abx * abx + abz * abz)));
+  return Math.hypot(px - ax - abx * t, pz - az - abz * t);
+};
+
+// exitAngles: dirección (rad) de cada sendero desde el centro; exitR: distancia del letrero.
+export function buildScene(key, data, props, exitAngles = [], exitR = 20) {
   const n = data.height.length ** 0.5 | 0;
   const cell = WORLD / n;
   const unitPerM = cell / data.cellM;
@@ -109,12 +123,16 @@ export function buildScene(key, data, props, legendLen, season) {
   const R = mulberry32(key.length * 7919 + 17);
   const vary = makeVary(R);
 
+  const paths = exitAngles.map(a => [0, 0, Math.cos(a) * exitR, Math.sin(a) * exitR]);
+  const onPath = (x, z, w = PATH_W) => paths.some(p => segDist(x, z, ...p) < w || Math.hypot(x - p[2], z - p[3]) < w + 3);
   // ---- terreno ----
   const K = 4;
   const riv = rasterRivers(data.rivers, n, K);
   const tex = makeTex(n * K, n * K, (x, y) => {
     const rt = riv.get(`${x},${y}`);
     if (rt) return vary(rt === 'canal' ? [70, 100, 130] : [56, 96, 150], 10);
+    const wx = (x + 0.5) / K * (WORLD / n) - WORLD / 2, wz = (y + 0.5) / K * (WORLD / n) - WORLD / 2;
+    if (onPath(wx, wz, 0.7) || Math.hypot(wx, wz) < 1.6) return vary(R() < 0.2 ? [150, 128, 92] : [172, 148, 108], 8); // sendero
     const c = cover[(y / K | 0) * n + (x / K | 0)];
     const pal = COVER_RGB[c] || COVER_RGB[5];
     if (c === 4 && (x % 8 === 0 || y % 8 === 0)) return vary([72, 70, 70], 4); // calles
@@ -161,21 +179,27 @@ export function buildScene(key, data, props, legendLen, season) {
     const k = kinds[id];
     if (k.perch) perches.push(new THREE.Vector3(x, y + k.perch * (s.y ?? s), z));
     if (k.flower) flowers.push(new THREE.Vector3(x, y + 0.5, z));
-    if (k.building || (k.perch ?? 0) > 2.5) obstacles.push({ x, z, r: k.building ? 1.3 * (s.x ?? s) : 0.4 });
+    if (k.building) obstacles.push({ x, z, r: 1.3 * (s.x ?? s) });
   };
   const exits = [];
+  const count = {};
+  const dScene = SCENE_DENSITY[key] ?? 1;
   for (let i = 0; i < n * n; i++) {
     const [cx, cz] = cellCenter(i);
-    if (Math.hypot(cx, cz) > half - 1.5) continue;
+    const rc = Math.hypot(cx, cz);
+    if (rc > half - 1.5) continue;
     const c = cover[i];
+    const clear = rc < CLEAR_R ? CLEAR_MIN : rc < CLEAR_R2 ? CLEAR_MIN + (1 - CLEAR_MIN) * (rc - CLEAR_R) / (CLEAR_R2 - CLEAR_R) : 1;
     for (const p of catalog) {
       if (!p.cover.includes(c)) continue;
-      let d = DENSITY[p.tipo] ?? 0.05;
-      if (p.tipo === 'edificio') { if (Math.hypot(cx, cz) < 9) continue; d = 0.45; }
+      if ((count[p.id] ?? 0) >= MAX_PER_KIND) continue;
+      if (p.tipo === 'edificio' && rc < BUILDING_CLEAR) continue;
+      const d = (DENSITY[p.tipo] ?? 0.05) * dScene * clear;
       if (R() > d) continue;
       const x = cx + (R() - 0.5) * cell * 0.8, z = cz + (R() - 0.5) * cell * 0.8;
-      if (Math.hypot(x, z) < 2.2) continue; // claro del punto de llegada
-      const s = p.tipo === 'edificio' ? { x: 0.8 + R() * 0.4, y: 1.5 + R() * 4, z: 0.8 + R() * 0.4 } : 0.7 + R() * 0.6;
+      if (Math.hypot(x, z) < 2.2 || onPath(x, z, p.tipo === 'edificio' ? PATH_W + 1.5 : PATH_W)) continue;
+      count[p.id] = (count[p.id] ?? 0) + 1;
+      const s = p.tipo === 'edificio' ? { x: 0.8 + R() * 0.4, y: 1.5 + R() * 2.5, z: 0.8 + R() * 0.4 } : 0.7 + R() * 0.6;
       place(p.id, x, z, s, R() * Math.PI * 2);
     }
   }
@@ -210,14 +234,14 @@ export function buildScene(key, data, props, legendLen, season) {
 }
 
 // Letrero de sendero con texto pixelado.
-export function signpost(text) {
-  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 32;
-  const g = cv.getContext('2d');
-  g.fillStyle = '#7a5430'; g.fillRect(0, 0, 128, 32);
-  g.fillStyle = '#3a2412'; g.fillRect(0, 0, 128, 2); g.fillRect(0, 30, 128, 2);
-  g.fillStyle = '#f4ecd0'; g.font = 'bold 13px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(text, 64, 17);
-  const t = new THREE.CanvasTexture(cv); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+export function signpost() {
+  // tablero de madera con una flecha; el nombre del destino va como etiqueta HTML (main.js)
+  const t = makeTex(32, 8, (x, y) => {
+    if (y === 0 || y === 7) return [58, 36, 18];
+    if (y >= 3 && y <= 4 && x >= 6 && x <= 22) return [244, 236, 208];
+    if (x >= 22 && x <= 26 && Math.abs(y - 3.5) <= 26 - x) return [244, 236, 208];
+    return x % 7 === 0 ? [100, 70, 40] : [122, 84, 48];
+  });
   const grp = new THREE.Group();
   const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.8, 0.16).translate(0, 0.9, 0), mat(plainTex, { tint: 0x5a3c22 }));
   const board = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.6, 0.08).translate(0, 1.55, 0), mat(t, { twoSided: false }));

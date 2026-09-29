@@ -11,13 +11,14 @@ export const shared = {
   uFogColor: { value: new THREE.Color(0x2b3527) },
   uFogNear: { value: 14 }, uFogFar: { value: 46 },
   uSnow: { value: 0 },
+  uCutNear: { value: 0 }, // corte de visión: props a menos de esta distancia de la cámara se disuelven
 };
 
 const VS = `
   uniform vec2 uSnap; uniform float uJitter; uniform float uAffine;
   uniform vec3 uLightDir; uniform vec3 uLightCol; uniform vec3 uAmb;
-  uniform float uFogNear; uniform float uFogFar; uniform vec2 uRepeat; uniform float uTwoSided;
-  varying vec3 vUvw; varying vec3 vLight; varying float vFog; varying float vUp;
+  uniform float uFogNear; uniform float uFogFar; uniform vec2 uRepeat; uniform float uTwoSided; uniform float uSteady;
+  varying vec3 vUvw; varying vec3 vLight; varying float vFog; varying float vUp; varying float vDepth;
   void main() {
     vec4 local = vec4(position, 1.0);
     vec3 nrm = normal;
@@ -27,7 +28,7 @@ const VS = `
     #endif
     vec4 mv = modelViewMatrix * local;
     vec4 p = projectionMatrix * mv;
-    if (uJitter > 0.5) {
+    if (uJitter > 0.5 && uSteady < 0.5) {
       vec2 ndc = p.xy / p.w;
       ndc = floor(ndc * uSnap + 0.5) / uSnap;
       p.xy = ndc * p.w;
@@ -40,17 +41,20 @@ const VS = `
     float w = uAffine > 0.5 ? p.w : 1.0;
     vUvw = vec3(uv * uRepeat * w, w);
     vFog = clamp((-mv.z - uFogNear) / (uFogFar - uFogNear), 0.0, 1.0);
+    vDepth = -mv.z;
     gl_Position = p;
   }`;
 const FS = `
   uniform sampler2D map; uniform vec3 uTint; uniform float uDither; uniform vec3 uFogColor;
   uniform float uAlphaMode; uniform float uSnow; uniform float uSnowable; uniform float uFlash;
-  varying vec3 vUvw; varying vec3 vLight; varying float vFog; varying float vUp;
+  uniform float uCutNear; uniform float uCutaway;
+  varying vec3 vUvw; varying vec3 vLight; varying float vFog; varying float vUp; varying float vDepth;
   float b2(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
   float bayer(vec2 a) { return b2(0.5 * a) * 0.25 + b2(a); }
   void main() {
     vec4 t = texture2D(map, vUvw.xy / vUvw.z);
     float th = bayer(gl_FragCoord.xy);
+    if (uCutaway > 0.5 && vDepth < uCutNear && th > (vDepth / uCutNear) * 0.9) discard; // disolución con trama
     if (uAlphaMode > 1.5) { if (t.a < th * 0.94 + 0.03) discard; }
     else if (uAlphaMode > 0.5) { if (t.a < 0.5) discard; }
     vec3 base = t.rgb * uTint;
@@ -72,6 +76,8 @@ export function mat(tex, o = {}) {
       uTwoSided: { value: o.twoSided ? 1 : 0 },
       uSnowable: { value: o.snowable ? 1 : 0 },
       uFlash: { value: 0 },
+      uCutaway: { value: o.cutaway ? 1 : 0 },
+      uSteady: { value: o.steady ? 1 : 0 },
     },
     vertexShader: VS, fragmentShader: FS,
     side: o.twoSided ? THREE.DoubleSide : THREE.FrontSide,
@@ -108,6 +114,12 @@ export function makeTex(w, h, fn) {
 
 export const texPlain = () => makeTex(4, 4, () => [255, 255, 255]);
 
+// Personajes (Poroto y aves): sin temblor de vértices, para que se lean mejor sobre el paisaje.
+export function steady(obj) {
+  obj.traverse(o => { if (o.material?.uniforms?.uSteady) o.material.uniforms.uSteady.value = 1; });
+  return obj;
+}
+
 // Proyección lateral de UV (u = eje x, v = eje y), como en el prototipo.
 export function sideUV(geo) {
   geo.computeBoundingBox();
@@ -123,8 +135,8 @@ export function createRenderer(canvas) {
   return renderer;
 }
 
-// Resolución interna baja (≈240 líneas) escalada a pantalla completa con pixelated.
-export function fitRenderer(renderer, camera, lines = 240) {
+// Resolución interna baja (≈300 líneas) escalada a pantalla completa con pixelated.
+export function fitRenderer(renderer, camera, lines = 300) {
   const aspect = window.innerWidth / window.innerHeight;
   const h = lines, w = Math.round(h * aspect);
   renderer.setSize(w, h, false);

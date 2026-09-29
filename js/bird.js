@@ -4,7 +4,7 @@
 // - Colores: species.palette (RGB 5 bits por zona) + pattern (barred/streaked/spotted/striped).
 // - Plan corporal (postura): paseriforme, cola_alta (tapaculos, chercán), paloma, playero, picaflor.
 /* global THREE */
-import { mat, makeTex, makeVary, mulberry32, sideUV, texPlain } from './ps1.js';
+import { mat, makeTex, makeVary, mulberry32, sideUV, texPlain, steady } from './ps1.js';
 
 const CHUCAO = { beak: 0.25, beakDepth: 0.29, tarsus: 0.52, tail: 0.94, hwi: 0.05 };
 const GRAY = { back: [120, 110, 100], back_dark: [80, 72, 64], belly: [180, 172, 160], flank: [150, 140, 128],
@@ -162,6 +162,7 @@ export function buildBird(sp, plan = 'paseriforme') {
     o.scale.setScalar(1.18); o.visible = false; m.add(o); return o;
   });
 
+  steady(bird);
   return {
     group: bird, bodyPivot, torso, head, headBase, tail, tailRest: pl.tail, wings, legs, upper, lower, plan,
     setOutline(color) {

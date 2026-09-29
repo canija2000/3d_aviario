@@ -6,7 +6,8 @@ import { loadWorld, loadRegion, loadJSON, DATA_BASE, MVP, CLASS_COLORS, CLASS_LA
 import { buildScene, signpost, WORLD } from './scene.js';
 import { buildPoroto } from './poroto.js';
 import { Director } from './aviary.js';
-import { unlockAudio, setListener, setMuted, blip } from './audio.js';
+import { buildBird } from './bird.js';
+import { unlockAudio, setListener, setMuted, blip, setAmbience, duckAmbience } from './audio.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('c');
@@ -47,8 +48,49 @@ function toast(html, secs = 3) {
   const t = $('toast'); t.innerHTML = html; t.hidden = false;
   clearTimeout(toast.h); toast.h = setTimeout(() => { t.hidden = true; }, secs * 1000);
 }
-function openDialog(html, actions = [{ label: 'Cerrar' }]) {
+// Retrato del ave (estilo RuneScape): renderer propio, pequeño y pixelado, con un modelo nuevo
+// de la misma especie girando lento.
+const portrait = (() => {
+  const cv = document.createElement('canvas');
+  const r = new THREE.WebGLRenderer({ canvas: cv, antialias: false, alpha: true });
+  r.setPixelRatio(1); r.setSize(96, 96, false); r.setClearColor(0x000000, 0);
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(28, 1, 0.1, 50);
+  $('dialog-portrait').appendChild(cv);
+  let model = null, t = 0, open = 0, raf = 0;
+  function loop() {
+    if ($('dialog').hidden || !model) { raf = 0; return; }
+    t += 1 / 60;
+    model.group.rotation.y = Math.sin(t * 0.8) * 0.45 - 0.35;
+    model.head.rotation.y = Math.sin(t * 1.7) * 0.2;
+    open = Math.max(0, open - 1 / 60);
+    const o = open > 0 ? 0.35 * (Math.sin(t * 22) > 0 ? 1 : 0) : 0;
+    model.lower.rotation.z = -0.18 - o; model.upper.rotation.z = -0.12 + o * 0.3;
+    r.render(scene, cam);
+    raf = requestAnimationFrame(loop);
+  }
+  return {
+    show(agent) {
+      if (model) scene.remove(model.group);
+      model = buildBird(agent.sp, agent.plan);
+      scene.add(model.group);
+      model.group.updateMatrixWorld(true);
+      const head = new THREE.Vector3(); model.head.getWorldPosition(head);
+      const look = head.clone().add(new THREE.Vector3(-0.15, -0.35, 0));
+      cam.position.copy(look).add(new THREE.Vector3(2.6, 0.5, 2.2));
+      cam.lookAt(look);
+      $('dialog-portrait').style.setProperty('--tip', agent.color);
+      $('dialog-portrait').hidden = false;
+      if (!raf) raf = requestAnimationFrame(loop);
+    },
+    hide() { $('dialog-portrait').hidden = true; },
+    sing(secs) { open = secs; },
+  };
+})();
+
+function openDialog(html, actions = [{ label: 'Cerrar' }], opts = {}) {
   $('dialog-text').innerHTML = html;
+  if (opts.bird) portrait.show(opts.bird); else portrait.hide();
   const box = $('dialog-actions'); box.innerHTML = '';
   for (const a of actions) {
     const b = document.createElement('button'); b.className = 'btn'; b.textContent = a.label;
@@ -78,15 +120,29 @@ function starfield() {
   g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
   return new THREE.Points(g, new THREE.PointsMaterial({ color: 0xc8d0ff, size: 1.2, sizeAttenuation: false, fog: false }));
 }
-function labelSprite(text, color = '#eef1f8') {
-  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 32;
-  const g = cv.getContext('2d');
-  g.font = 'bold 18px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillStyle = '#05060b'; g.fillText(text, 129, 18); g.fillStyle = color; g.fillText(text, 128, 16);
-  const t = new THREE.CanvasTexture(cv); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, fog: false }));
-  s.scale.set(8, 1, 1);
-  return s;
+// Etiquetas del mundo como HTML proyectado: el 3D va a 240p, pero el texto debe leerse nítido.
+const worldLabels = [];
+function addLabel(html, pos, color = '#eef1f8', cls = '') {
+  const el = document.createElement('div');
+  el.className = 'wlabel ' + cls; el.innerHTML = html; el.style.color = color;
+  document.body.appendChild(el);
+  const l = { el, pos: pos.clone() };
+  worldLabels.push(l);
+  return l;
+}
+function clearLabels() { for (const l of worldLabels) l.el.remove(); worldLabels.length = 0; }
+const _v = new THREE.Vector3();
+function updateLabels() {
+  for (const l of worldLabels) {
+    _v.copy(l.pos).project(camera);
+    const d = camera.position.distanceTo(l.pos);
+    const show = _v.z < 1 && Math.abs(_v.x) < 1.1 && Math.abs(_v.y) < 1.1 && d < 60;
+    l.el.hidden = !show;
+    if (show) {
+      l.el.style.left = ((_v.x + 1) / 2 * window.innerWidth) + 'px';
+      l.el.style.top = ((1 - _v.y) / 2 * window.innerHeight) + 'px';
+    }
+  }
 }
 
 // ------------------------------------------------------------------ MENÚ DE REGIONES
@@ -122,9 +178,7 @@ function buildHub() {
     const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.9, 0).scale(1, 1.5, 1), mat(glow, { tint: color }));
     gem.position.set(pts[i].x + 3.2, 2, pts[i].z);
     scene.add(gem);
-    const lab = labelSprite(r.name, active ? '#f4d35e' : '#8a90aa');
-    lab.position.set(pts[i].x + 3.2 + 5.2, 2, pts[i].z);
-    scene.add(lab);
+    addLabel(r.name, new THREE.Vector3(pts[i].x + 4.4, 2.2, pts[i].z), active ? '#f4d35e' : '#aab0c8', 'left' + (active ? ' big' : ''));
     const proxy = new THREE.Mesh(new THREE.SphereGeometry(1.1, 6, 4), new THREE.MeshBasicMaterial({ visible: false }));
     proxy.position.copy(gem.position); proxy.userData.portal = { region: r, active, gem };
     scene.add(proxy);
@@ -147,13 +201,15 @@ function buildHub() {
 
 async function enterHub() {
   G.mode = 'hub';
+  setAmbience(null);
+  clearLabels();
   G.hubWorld = buildHub();
   G.world = G.hubWorld.scene;
   applyLight('primavera', 0x05060b, 30, 90);
   poroto.pos.copy(G.hubWorld.rmPoint); poroto.pos.x -= 0.5;
   poroto.drop = 14; poroto.heading = -Math.PI / 2;
   poroto.season = 'primavera';
-  G.cam.dist = 20; G.cam.pitch = 0.75; G.cam.yaw = -Math.PI / 2 + 0.5;
+  G.cam.dist = 20; G.cam.pitch = 0.75; G.cam.yaw = -Math.PI / 2 + 0.5; G.cam.distGoal = G.cam.pitchGoal = G.cam.yawGoal = undefined;
   G.cam.target.copy(poroto.pos);
   $('hud').hidden = true;
   await fade(false);
@@ -190,18 +246,24 @@ async function enterRegion(code) {
 
 async function loadSceneKey(key, fromKey, withFade = true) {
   const data = G.reg.terrain.scenes[key];
-  const scene = new THREE.Scene();
-  const sc = buildScene(key, data, G.props, 10, SEASON_OF[G.month]);
-  scene.add(sc.root, poroto.root, poroto.shadow);
-  G.world = scene; G.sc = sc; G.sceneKey = key;
   // senderos hacia los otros cuartos, en la dirección geográfica real
-  G.exits = [];
-  for (const k of SCENE_ORDER) {
-    if (k === key) continue;
+  const dirs = SCENE_ORDER.filter(k => k !== key).map(k => {
     const other = G.reg.terrain.scenes[k];
     const dx = (other.center[0] - data.center[0]) * Math.cos(data.center[1] * Math.PI / 180), dz = -(other.center[1] - data.center[1]);
-    const a = Math.atan2(dz, dx);
-    const r = sc.half * 0.62;
+    return { k, a: Math.atan2(dz, dx) };
+  });
+  // separar senderos que apuntan casi igual (p. ej. matorral y cordillera desde la ciudad)
+  dirs.sort((p, q) => p.a - q.a);
+  for (let i = 1; i < dirs.length; i++) if (dirs[i].a - dirs[i - 1].a < 0.6) dirs[i].a = dirs[i - 1].a + 0.6;
+  const EXIT_R = WORLD / 2 * 0.62;
+  const scene = new THREE.Scene();
+  const sc = buildScene(key, data, G.props, dirs.map(d => d.a), EXIT_R);
+  scene.add(sc.root, poroto.root, poroto.shadow);
+  G.world = scene; G.sc = sc; G.sceneKey = key;
+  clearLabels();
+  G.exits = [];
+  for (const { k, a } of dirs) {
+    const r = EXIT_R;
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     const sign = signpost(`→ ${SCENE_LABEL[k]}`);
     sign.position.set(x, sc.heightAt(x, z), z);
@@ -209,17 +271,19 @@ async function loadSceneKey(key, fromKey, withFade = true) {
     const proxy = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.4, 1), new THREE.MeshBasicMaterial({ visible: false }));
     proxy.position.set(0, 1.2, 0); proxy.userData.exit = { key: k, sign }; sign.add(proxy);
     scene.add(sign);
+    addLabel(`→ ${SCENE_LABEL[k]}`, sign.position.clone().add(new THREE.Vector3(0, 2.4, 0)), '#f4d35e');
     G.exits.push({ key: k, sign, proxy, angle: a });
   }
   // llegada: junto al letrero del cuarto de origen, o al centro
   const back = G.exits.find(e => e.key === fromKey);
-  if (back) { poroto.pos.set(back.sign.position.x * 0.8, 0, back.sign.position.z * 0.8); }
+  if (back) { poroto.pos.set(back.sign.position.x * 0.6, 0, back.sign.position.z * 0.6); }
   else poroto.pos.set(0, 0, 0);
   poroto.target = null; poroto.state = 'idle'; poroto.drop = 0;
-  G.cam.dist = 12; G.cam.pitch = 0.62; G.cam.yaw = -Math.PI / 2;
+  G.cam.dist = 13; G.cam.pitch = 0.72; G.cam.yaw = -Math.PI / 2; G.cam.distGoal = G.cam.pitchGoal = G.cam.yawGoal = undefined;
   G.cam.target.set(poroto.pos.x, sc.heightAt(poroto.pos.x, poroto.pos.z), poroto.pos.z);
   G.director.root = scene;
   G.director.setScene(key, sc, G.month, true);
+  setAmbience(key);
   applySeason(true);
   updateHud();
   if (withFade) await fade(false);
@@ -297,14 +361,95 @@ function updateHud() {
   $('b-pause').title = G.paused ? 'Reanudar el tiempo' : 'Pausar el tiempo';
 }
 
+// ------------------------------------------------------------------ estadísticas en vivo del cuarto
+$('live-toggle').onclick = () => {
+  const c = $('live').classList.toggle('closed');
+  $('live-toggle').setAttribute('aria-expanded', String(!c));
+};
+let liveT = 0;
+function updateLive(dt) {
+  liveT -= dt;
+  if (liveT > 0 || !G.director) return;
+  liveT = 0.5;
+  const groups = new Map();
+  for (const a of G.director.agents) {
+    const g = groups.get(a.sp.id) || { a, n: 0, sing: false, arriving: 0, leaving: 0 };
+    g.n++; g.sing ||= !!a.singing;
+    if (a.leaving) g.leaving++; else if (a.state === 'wait' || (a.state === 'fly' && a.pos.y > a.to.y + 3)) g.arriving++;
+    groups.set(a.sp.id, g);
+  }
+  const rows = [...groups.values()].sort((p, q) => q.a.freq - p.a.freq);
+  const here = rows.reduce((s, g) => s + g.n - g.leaving, 0);
+  $('live-n').textContent = `· ${here} aves`;
+  $('live-body').innerHTML = rows.map(g => {
+    const pct = Math.round(g.a.freq / 10);
+    const st = g.sing ? '<span class="sing">♪</span> ' : '';
+    const mv = g.leaving ? ' · se va' : g.arriving ? ' · llegando' : '';
+    return `<div class="live-row" title="${CLASS_LABEL[g.a.cls]} · registrada ${pct}% de los días de ${G.index.months[G.month]} en la región (año típico)">
+      <span class="dot" style="background:${g.a.color}"></span><span class="name">${st}${g.a.sp.comName}</span><span class="meta">×${g.n}${mv}</span>
+      <span class="bar"><i style="width:${Math.min(100, pct)}%;background:${g.a.color}"></i></span></div>`;
+  }).join('') + `<div class="live-foot">Barra: % de días de ${G.index.months[G.month]} con registro en la región · color: clase regional</div>`;
+}
+
 // ------------------------------------------------------------------ cantos
 function onSing(agent, dur) {
+  duckAmbience(dur);
   const d = agent.pos.distanceTo(poroto.pos);
   if (d < 30) {
     poroto.setFeather(agent.color, agent.pos);
     clearTimeout(onSing.h);
     onSing.h = setTimeout(() => poroto.setFeather(null, null), dur * 1000);
   }
+}
+
+// ------------------------------------------------------------------ puntero y marca de destino
+// Cursores pixel art dibujados en un canvas (2× para que se vean nítidos).
+function pixelCursor(rows, colors, scale = 2) {
+  const h = rows.length, w = rows[0].length;
+  const cv = document.createElement('canvas'); cv.width = w * scale; cv.height = h * scale;
+  const g = cv.getContext('2d');
+  rows.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (colors[ch]) { g.fillStyle = colors[ch]; g.fillRect(x * scale, y * scale, scale, scale); }
+  }));
+  return cv.toDataURL();
+}
+const CUR_COLORS = { k: '#05060b', w: '#f4ecd0', y: '#f4d35e', r: '#d04a3a' };
+const ARROW = [
+  'k...........', 'kk..........', 'kwk.........', 'kwwk........', 'kwwwk.......', 'kwwwwk......', 'kwwwwwk.....',
+  'kwwwwwwk....', 'kwwwwwwwk...', 'kwwwwwwwwk..', 'kwwwwwkkkkk.', 'kwwkwwk.....', 'kwk.kwwk....', 'kk..kwwk....',
+  'k....kwwk...', '.....kwwk...', '......kk....'];
+const HAND = [
+  '....kk......', '...kyyk.....', '...kyyk.....', '...kyyk.....', '...kyykkk...', '...kyykyykk.', '.kkkyykyykyk',
+  'kyykyyyyyyyk', 'kyyyyyyyyyyk', '.kyyyyyyyyyk', '.kyyyyyyyyk.', '..kyyyyyyyk.', '..kyyyyyyk..', '...kyyyyyk..', '...kkkkkkk..'];
+const TRAIL = ARROW.map((r, i) => i >= 12 ? r.slice(0, 7) + ['.....', '..r.r', '.r.r.', '..r.r', '.....'][i - 12] : r);
+const CURSORS = {
+  arrow: `url(${pixelCursor(ARROW, CUR_COLORS)}) 0 0, auto`,
+  hand: `url(${pixelCursor(HAND, CUR_COLORS)}) 8 0, pointer`,
+  trail: `url(${pixelCursor(TRAIL, CUR_COLORS)}) 0 0, pointer`,
+};
+function setCursor(kind) { canvas.style.cursor = CURSORS[kind] || CURSORS.arrow; }
+setCursor('arrow');
+
+// X roja donde se hizo clic (estilo RuneScape): aparece, late y se desvanece.
+const marker = new THREE.Group();
+{
+  const m = new THREE.MeshBasicMaterial({ color: 0xd8342a, depthTest: false, transparent: true });
+  const o = new THREE.MeshBasicMaterial({ color: 0x05060b, depthTest: false, transparent: true });
+  for (const a of [Math.PI / 4, -Math.PI / 4]) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.02, 0.2), m); bar.rotation.y = a; bar.renderOrder = 11; marker.add(bar);
+    const out = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.01, 0.34), o); out.rotation.y = a; out.renderOrder = 10; marker.add(out);
+  }
+  marker.visible = false; marker.userData.t = 0;
+}
+function showMarker(p) { marker.position.set(p.x, p.y + 0.08, p.z); marker.visible = true; marker.userData.t = 0; G.world?.add(marker); }
+function updateMarker(dt) {
+  if (!marker.visible) return;
+  const t = (marker.userData.t += dt);
+  const pop = t < 0.15 ? t / 0.15 * 1.3 : 1 + 0.12 * Math.sin(t * 10);
+  marker.scale.setScalar(pop);
+  const fadeOut = poroto.state !== 'walk' ? Math.max(0, 1 - (t - 0.3) * 3) : 1;
+  marker.children.forEach(c => { c.material.opacity = fadeOut; });
+  if (fadeOut <= 0 || t > 8) marker.visible = false;
 }
 
 // ------------------------------------------------------------------ interacción
@@ -344,7 +489,7 @@ function setHover(h, ev) {
   G.hover = h?.bird || null;
   poroto.binoc = G.hover ? 1 : 0;
   poroto.look = G.hover ? G.hover.pos.clone() : null;
-  canvas.classList.toggle('pointer', !!(h && (h.bird || h.exit || h.portal)));
+  setCursor(h?.bird || h?.portal ? 'hand' : h?.exit ? 'trail' : 'arrow');
   if (h?.bird) {
     const a = h.bird;
     a.m.setOutline(a.color);
@@ -364,7 +509,7 @@ canvas.addEventListener('pointermove', ev => {
   if (G.mode === 'scene' || G.mode === 'hub') setHover(pick(ev), ev);
 });
 canvas.addEventListener('pointerdown', ev => {
-  if (G.mode !== 'scene' && G.mode !== 'hub') return;
+  if (ev.button !== 0 || (G.mode !== 'scene' && G.mode !== 'hub')) return;
   if (G.dialogOpen) closeDialog();
   const h = pick(ev);
   if (h.portal) { portalClicked(h.portal); return; }
@@ -377,25 +522,55 @@ canvas.addEventListener('pointerdown', ev => {
   if (h.ground) {
     if (G.mode === 'hub') {
       const { p, d } = G.hubWorld.snap(h.ground.x, h.ground.z);
-      if (d < 4) poroto.walkTo(p);
+      if (d < 4) { poroto.walkTo(p); showMarker(p); }
     } else {
       const lim = G.sc.half - 2;
-      poroto.walkTo(new THREE.Vector3(Math.max(-lim, Math.min(lim, h.ground.x)), 0, Math.max(-lim, Math.min(lim, h.ground.z))));
+      const x = Math.max(-lim, Math.min(lim, h.ground.x)), z = Math.max(-lim, Math.min(lim, h.ground.z));
+      poroto.walkTo(new THREE.Vector3(x, 0, z));
+      showMarker(new THREE.Vector3(x, G.sc.heightAt(x, z), z));
     }
     blip(990, 0.03);
   }
 });
+// Cámara: las teclas, el arrastre con botón derecho y la rueda mueven una meta; la cámara la sigue
+// con suavizado exponencial (sin saltos).
+const keys = new Set();
+let rdrag = null;
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
-  G.cam.dist = Math.min(24, Math.max(6, G.cam.dist * (1 + Math.sign(e.deltaY) * 0.1)));
+  G.cam.distGoal = Math.min(24, Math.max(6, (G.cam.distGoal ?? G.cam.dist) * (1 + Math.sign(e.deltaY) * 0.12)));
 }, { passive: false });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('pointerdown', e => { if (e.button === 2) { rdrag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); } });
+canvas.addEventListener('pointermove', e => {
+  if (!rdrag) return;
+  G.cam.yawGoal = (G.cam.yawGoal ?? G.cam.yaw) + (e.clientX - rdrag.x) * 0.006;
+  G.cam.pitchGoal = Math.min(1.25, Math.max(0.2, (G.cam.pitchGoal ?? G.cam.pitch) + (e.clientY - rdrag.y) * 0.004));
+  rdrag = { x: e.clientX, y: e.clientY };
+});
+canvas.addEventListener('pointerup', e => { if (e.button === 2) rdrag = null; });
+window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+window.addEventListener('blur', () => keys.clear());
+function steerCamera(dt) {
+  const c = G.cam;
+  c.yawGoal ??= c.yaw; c.pitchGoal ??= c.pitch; c.distGoal ??= c.dist;
+  const turn = (keys.has('e') || keys.has('arrowright') ? 1 : 0) - (keys.has('q') || keys.has('arrowleft') ? 1 : 0);
+  const tilt = (keys.has('arrowup') ? 1 : 0) - (keys.has('arrowdown') ? 1 : 0);
+  c.yawVel = (c.yawVel ?? 0) + (turn * 1.6 - (c.yawVel ?? 0)) * Math.min(1, dt * 5); // acelera y frena suave
+  c.yawGoal += c.yawVel * dt;
+  c.pitchGoal = Math.min(1.25, Math.max(0.2, c.pitchGoal + tilt * 0.8 * dt));
+  const k = 1 - Math.exp(-dt * 8);
+  c.yaw += (c.yawGoal - c.yaw) * k;
+  c.pitch += (c.pitchGoal - c.pitch) * k;
+  c.dist += (c.distGoal - c.dist) * k;
+}
 window.addEventListener('keydown', e => {
   if (G.mode === 'start' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); start(); return; }
   if (e.key === 'Escape') { closeDialog(); $('panel').hidden = true; }
-  if (e.key === 'q' || e.key === 'Q' || e.key === 'ArrowLeft') G.cam.yaw -= Math.PI / 8;
-  if (e.key === 'e' || e.key === 'E' || e.key === 'ArrowRight') G.cam.yaw += Math.PI / 8;
-  if (e.key === 'ArrowUp') G.cam.pitch = Math.min(1.25, G.cam.pitch + 0.08);
-  if (e.key === 'ArrowDown') G.cam.pitch = Math.max(0.2, G.cam.pitch - 0.08);
+  if (['q', 'e', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(e.key.toLowerCase())) {
+    if (e.key.startsWith('Arrow')) e.preventDefault();
+    keys.add(e.key.toLowerCase());
+  }
 });
 
 function birdClicked(a) {
@@ -403,9 +578,9 @@ function birdClicked(a) {
   poroto.look = a.pos.clone(); poroto.binoc = 1;
   const isNew = !G.book.has(a.sp.id);
   openDialog(birdDialog(G.index, a.sp, G.reg.meta.id), [
-    { label: '♪ Escuchar', keep: true, fn: () => G.director.singNow(a, true) },
+    { label: '♪ Escuchar', keep: true, fn: async () => { const d = await G.director.singNow(a, true); portrait.sing(d || 2); } },
     { label: 'Cerrar' },
-  ]);
+  ], { bird: a });
   if (isNew) {
     G.book.add(a.sp.id); saveBook();
     poroto.write();
@@ -478,6 +653,7 @@ function frame(now) {
     if (st.sleep && bubble.hidden) say('Zzz…', 2);
     if (G.mode === 'scene') {
       G.director.update(dt, G.paused);
+      updateLive(dt);
       if (!G.paused && !G.dialogOpen) {
         G.monthT += dt;
         if (G.monthT >= MONTH_SECONDS) setMonth(G.month + 1);
@@ -487,6 +663,8 @@ function frame(now) {
       if (G.hover && !G.hover.m.group.parent) setHover(null, lastPointer);
     }
     // cámara semifija que sigue a Poroto
+    steerCamera(dt);
+    updateMarker(dt);
     const c = G.cam;
     const goal = new THREE.Vector3(poroto.pos.x, poroto.root.position.y + 0.8, poroto.pos.z);
     c.target.lerp(goal, 1 - Math.exp(-dt * 3));
@@ -496,6 +674,7 @@ function frame(now) {
     camera.lookAt(c.target);
     camera.updateMatrixWorld();
     shared.uLightDir.value.set(0.45, 1, 0.35).normalize().transformDirection(camera.matrixWorldInverse);
+    shared.uCutNear.value = G.mode === 'scene' ? c.dist * 0.85 : 0;
     camera.getWorldDirection(fwd);
     setListener(poroto.root.position, fwd);
     // globito de Poroto
@@ -507,6 +686,7 @@ function frame(now) {
       if (bubbleT <= 0) bubble.hidden = true;
     }
     if (G.world) renderer.render(G.world, camera);
+    updateLabels();
   }
   requestAnimationFrame(frame);
 }
@@ -520,4 +700,4 @@ loadWorld().then(idx => { G.index = idx; }).catch(err => {
 requestAnimationFrame(frame);
 
 // para depurar desde la consola
-window.G = G; window.camera = camera; window.poroto = poroto;
+window.G = G; window.camera = camera; window.poroto = poroto; window.dbg = { enterRegion, travel, setMonth };

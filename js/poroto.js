@@ -3,7 +3,7 @@
 // libreta (anota cada especie nueva), bufanda en invierno, estornudos en primavera, se abanica en
 // verano y se duerme si lo dejas quieto.
 /* global THREE */
-import { mat, makeTex, makeVary, mulberry32, texPlain } from './ps1.js';
+import { mat, makeTex, makeVary, mulberry32, texPlain, steady } from './ps1.js';
 
 const R = mulberry32(77);
 const vary = makeVary(R);
@@ -71,6 +71,8 @@ export function buildPoroto() {
   const shadowTex = makeTex(16, 16, (x, y) => [18, 22, 14, Math.hypot(x - 7.5, y - 7.5) < 7.5 ? 170 : 0]);
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.0).rotateX(-Math.PI / 2), mat(shadowTex, { alpha: 2 }));
 
+  steady(root);
+  body.scale.setScalar(1.1);
   const P = {
     root, shadow, pos: new THREE.Vector3(), heading: 0, target: null, speed: 3.2,
     state: 'idle', t: 0, idleFor: 0, look: null, binoc: 0, writing: 0, sneeze: 0, fan: 0,
@@ -137,7 +139,7 @@ export function buildPoroto() {
     P.fan = Math.max(0, P.fan - dt);
     P.sneeze = Math.max(0, P.sneeze - dt);
     const sq = P.sneeze > 0 ? 1 - 0.15 * Math.sin(Math.PI * P.sneeze / 0.6) : 1;
-    body.scale.set(1 / sq ** 0.5, sq, 1 / sq ** 0.5);
+    body.scale.set(1.1 / sq ** 0.5, 1.1 * sq, 1.1 / sq ** 0.5);
     // ojos cerrados al dormir
     eyes.forEach(e => { e.scale.y = sleep ? 0.15 : 1; });
     // pluma: apunta hacia el ave que canta

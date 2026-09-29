@@ -16,7 +16,7 @@ export class BirdAgent {
     this.scene = scene;
     this.plan = planFor(sp, MVP[sp.sciName]);
     this.m = buildBird(sp, this.plan);
-    this.s = Math.max(0.2, Math.min(0.85, 0.42 * (sp.morphology?.scale ?? 1)));
+    this.s = Math.max(0.25, Math.min(1.0, 0.5 * (sp.morphology?.scale ?? 1)));
     this.m.group.scale.setScalar(this.s);
     this.cls = sp.regionalClass[String(regionId)] || sp.class;
     this.color = CLASS_COLORS[this.cls] || '#ffffff';
@@ -263,6 +263,7 @@ export class Director {
       if (dur) a.sing(dur); else a.sing(1.5);
     }
     if (dur && this.onSing) this.onSing(a, dur);
+    return dur;
   }
 
   update(dt, paused) {

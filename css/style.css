@@ -12,6 +12,9 @@
   --no: #6f7697;
   --rufous: #d0662a;
   --pix: "Pixelify Sans", "Courier New", ui-monospace, monospace;
+  --read: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --panel: rgba(8, 10, 16, 0.9);
+  --panel-edge: #c9cfdd;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -19,14 +22,17 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ground
 #c { position: fixed; inset: 0; width: 100vw; height: 100vh; image-rendering: pixelated; image-rendering: crisp-edges; display: block; touch-action: none; }
 #c.pointer { cursor: pointer; }
 
+/* Ventanas: fondo negro sobrio y texto en fuente legible; el pixel art queda para títulos y botones. */
 .win {
-  background: linear-gradient(180deg, var(--win-top) 0%, var(--win-mid) 55%, var(--win-bot) 100%);
-  border: 2px solid var(--win-edge); border-radius: 5px;
-  box-shadow: inset 0 0 0 2px var(--win-inner), 0 0 0 2px #05060b;
-  padding: 10px 14px; color: var(--ink); text-shadow: 2px 2px 0 #060a24;
+  background: var(--panel);
+  border: 2px solid var(--panel-edge); border-radius: 6px;
+  box-shadow: 0 0 0 2px #000, 0 6px 18px rgba(0, 0, 0, 0.45);
+  padding: 12px 16px; color: var(--ink);
+  font-family: var(--read); font-size: 16px; line-height: 1.5; letter-spacing: 0.01em;
 }
-.win b { color: var(--yes); font-weight: 600; }
-.dim { color: var(--ink-dim); font-size: 0.85em; }
+.win h2, .hud-place b, .btn { font-family: var(--pix); }
+.win b { color: var(--yes); font-weight: 700; }
+.dim { color: #b4bbd4; font-size: 0.88em; }
 
 .screen { position: fixed; inset: 0; display: grid; place-content: center; text-align: center; gap: 8px; background: radial-gradient(ellipse at center, #111a3a 0%, #05060b 70%); cursor: pointer; z-index: 20; }
 .screen h1 { margin: 0; font-size: clamp(40px, 10vw, 96px); letter-spacing: 0.08em; color: var(--rufous); text-shadow: 4px 4px 0 #2a1208; }
@@ -37,20 +43,39 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ground
 @media (prefers-reduced-motion: reduce) { .blink { animation: none; } }
 
 #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+.hud-live { position: absolute; top: 86px; left: 12px; width: min(300px, 44vw); padding: 8px 12px; font-size: 14px; }
+.live-head { all: unset; cursor: pointer; font-family: var(--pix); font-size: 15px; letter-spacing: 0.04em; display: flex; gap: 6px; width: 100%; }
+.live-head .chev { margin-left: auto; }
+.hud-live.closed #live-body { display: none; }
+.hud-live.closed .chev { transform: rotate(-90deg); }
+#live-body { margin-top: 6px; display: grid; gap: 5px; }
+.live-row { display: grid; grid-template-columns: 10px 1fr auto; gap: 6px; align-items: center; }
+.live-row .dot { width: 10px; height: 10px; border-radius: 2px; }
+.live-row .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.live-row .meta { color: #b4bbd4; font-size: 12px; font-variant-numeric: tabular-nums; }
+.live-row .bar { grid-column: 2 / 4; height: 4px; background: #232838; border-radius: 2px; overflow: hidden; }
+.live-row .bar i { display: block; height: 100%; }
+.live-row .sing { color: var(--yes); }
+.live-foot { color: #b4bbd4; font-size: 12px; border-top: 1px solid #2a3044; padding-top: 5px; }
+@media (max-width: 640px) { .hud-live { top: 76px; font-size: 13px; } }
 #hud > * { pointer-events: auto; }
 .hud-place { position: absolute; top: 12px; left: 12px; font-size: 18px; max-width: 46vw; }
 .hud-time { position: absolute; top: 12px; right: 12px; display: flex; gap: 10px; align-items: center; font-size: 16px; }
 .hud-buttons { position: absolute; bottom: 12px; right: 12px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 70vw; }
-.btn { font-family: var(--pix); font-size: 15px; color: var(--ink); background: linear-gradient(180deg, var(--win-top), var(--win-bot)); border: 2px solid var(--win-edge); border-radius: 4px; padding: 5px 10px; cursor: pointer; text-shadow: 2px 2px 0 #060a24; }
-.btn:hover, .btn:focus-visible { color: var(--yes); outline: none; }
+.btn { font-family: var(--pix); font-size: 16px; color: var(--ink); background: #10131c; border: 2px solid var(--panel-edge); border-radius: 4px; padding: 5px 11px; cursor: pointer; letter-spacing: 0.03em; }
+.btn:hover, .btn:focus-visible { color: #10131c; background: var(--yes); border-color: var(--yes); outline: none; }
 .btn.off { color: var(--no); }
 .btn[disabled] { color: var(--no); cursor: not-allowed; }
 
-.tip { position: fixed; pointer-events: none; font-size: 15px; padding: 3px 8px; background: #05060bcc; border: 2px solid var(--tip, #fff); border-radius: 3px; z-index: 6; transform: translate(12px, 12px); }
+.tip { position: fixed; pointer-events: none; font-family: var(--read); font-size: 15px; line-height: 1.3; padding: 4px 9px; background: var(--panel); color: var(--ink); border: 2px solid var(--tip, #fff); border-radius: 4px; z-index: 6; transform: translate(14px, 14px); white-space: nowrap; }
 .toast { position: fixed; top: 84px; left: 50%; transform: translateX(-50%); font-size: 16px; z-index: 7; max-width: min(560px, 90vw); text-align: center; }
-.dialog { position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%); width: min(720px, calc(100vw - 24px)); font-size: clamp(15px, 2.2vw, 19px); line-height: 1.4; z-index: 8; }
+.dialog { position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%); width: min(760px, calc(100vw - 24px)); font-size: clamp(16px, 2vw, 18px); line-height: 1.55; z-index: 8; }
+.dlg-row { display: flex; gap: 14px; align-items: flex-start; }
+#dialog-portrait { flex: none; width: 124px; height: 124px; border: 3px solid var(--tip, #c9cfdd); border-radius: 6px; background: radial-gradient(circle at 50% 40%, #2a3350 0%, #0b0e18 80%); box-shadow: 0 0 0 2px #000; overflow: hidden; }
+#dialog-portrait canvas { width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+@media (max-width: 520px) { #dialog-portrait { width: 84px; height: 84px; } }
 #dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; flex-wrap: wrap; }
-.panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(640px, calc(100vw - 24px)); max-height: 80vh; overflow: auto; z-index: 9; font-size: 15px; line-height: 1.4; }
+.panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(660px, calc(100vw - 24px)); max-height: 80vh; overflow: auto; z-index: 9; font-size: 16px; line-height: 1.5; }
 .panel h2 { margin: 0 0 8px; font-size: 22px; letter-spacing: 0.06em; }
 .panel .close { position: sticky; float: right; top: 0; }
 .panel ul { padding-left: 18px; margin: 6px 0; }
@@ -62,7 +87,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ground
 .book .sw i { width: 14px; height: 14px; display: block; image-rendering: pixelated; }
 .scenes { display: grid; gap: 6px; }
 
-.fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .6s steps(6); z-index: 15; display: grid; place-content: center; text-align: center; font-size: clamp(18px, 3vw, 26px); color: var(--ink); padding: 16px; }
+.fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .6s steps(6); z-index: 15; display: grid; place-content: center; text-align: center; font-family: var(--read); font-size: clamp(19px, 3vw, 26px); color: var(--ink); padding: 16px; }
 .fade.on { opacity: 1; pointer-events: auto; }
 .fade small { display: block; color: var(--ink-dim); font-size: 0.7em; margin-top: 8px; }
 
@@ -73,3 +98,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ground
   .btn { font-size: 13px; padding: 4px 7px; }
   .dialog { bottom: 56px; }
 }
+
+/* etiquetas del mundo (HTML proyectado sobre el 3D) */
+.wlabel { position: fixed; transform: translate(-50%, -100%); pointer-events: none; z-index: 4; white-space: nowrap;
+  font-family: var(--read); font-weight: 700; font-size: 15px; letter-spacing: 0.02em;
+  text-shadow: 0 0 3px #000, 0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
+.wlabel.left { transform: translate(0, -50%); }
+.wlabel.big { font-size: 18px; }
