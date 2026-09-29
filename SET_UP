@@ -1,0 +1,240 @@
+# SET_UP — Mundo 3D de aves de Chile (demo point & click)
+
+## 1. Contexto
+
+Este repo nace de un proyecto de Visualización de Información (curso 2026-2):
+**"Nómadas & sedentarios: las avifaunas de Chile continental"**. El repo
+principal (`canija2000/infovis_2026-2`) tiene el pipeline de datos (GBIF → JSON),
+una web en D3 (un calendario especie × mes por región) y una sonificación con
+cantos reales.
+
+Este repo es una **visualización alternativa, exploratoria y lúdica**: un mundo
+3D de baja resolución (estética PS1) donde un avatar recorre las regiones de
+Chile y se encuentra con las aves que realmente se registran ahí, mes a mes.
+**No reimplementes el pipeline de datos**: este repo consume los JSON que
+genera el repo principal.
+
+## 2. La experiencia
+
+1. **Pantalla de inicio "PRESS START".** El clic desbloquea el audio (los
+   navegadores bloquean el sonido hasta que el usuario interactúa).
+2. **Menú principal.** El avatar cae del vacío a un espacio donde flotan las
+   16 regiones como objetos o portales, ordenadas de norte a sur (formando la
+   silueta de Chile).
+3. **Entrar a una región.** Clic en el portal y elección del año: por defecto
+   el **año típico**; también 2017–2024.
+4. **Cartel de bienvenida** al entrar, generado desde los datos. Ejemplo:
+   "Bienvenido a Magallanes, 2019. Este año nos visitaron… Nuestros residentes
+   son…".
+5. **Escena de la región.** Un diorama pequeño, no la región entera. Tiene
+   entre 8 y 15 aves en lugares esperables para su hábitat. Cantan con su
+   canto real, se mueven un poco (saltos, picoteos, giros de cabeza) y a veces
+   cambian de lugar.
+6. **Paso del tiempo.** Un ciclo de 4 estaciones dura unos 3 minutos (unos 15
+   segundos por mes). Llegan y se van aves según los datos: las que se van
+   salen volando por los bordes y las que llegan entran volando. El entorno
+   cambia con la estación: luz, largo del día, hojas y nieve.
+7. **Hover sobre un ave:** se dibuja un contorno con el color de su clase
+   **en esa región** (`regionalClass`):
+   - residente `#288665`
+   - visitante de verano `#ee9b45`
+   - visitante de invierno `#4a7fd0` (provisorio: el azul exacto está en la
+     paleta de `web/styles.css` del repo principal)
+   - ocasional `#9a9aa6`
+8. **Clic sobre un ave:** abre un diálogo en primera persona con sus
+   estadísticas, del año y generales. Ejemplo: "¡Fiu fiu! Soy el Fío-fío.
+   Vuelvo cada año entre octubre y marzo. Mi mes favorito es diciembre. Donde
+   más me registran es en Aysén…".
+9. **Point & click:** el avatar camina al punto clicado. Se recomienda una
+   cámara fija o semifija sobre el diorama, no libre.
+
+### Ideas complementarias (priorizar después del MVP)
+
+- **Libreta de campo tipo Pokédex:** se llena con las especies encontradas y
+  funciona como vista de comparación entre regiones y años.
+- **HUD con una rueda de estaciones:** mes actual, riqueza del mes y cuántas
+  residentes, de verano y de invierno hay ahora (datos en `regions[].months`).
+- **Especies ocasionales:** aparecen de vez en cuando como encuentros raros.
+- **Controles de accesibilidad:** pausar el tiempo, elegir el mes a mano y
+  saltar la intro.
+- **Augurio del chucao:** si canta a la derecha es buen augurio; a la
+  izquierda, malo. Ya está implementado en el HTML de referencia.
+
+## 3. Referencia visual y técnica
+
+Se adjunta `chucao.html`, un prototipo autocontenido con three.js r128 (desde
+cdnjs). Contiene todo esto y es la base de estilo y código:
+
+- Un shader estilo PS1: vértices que tiemblan, texturas afines, color de 15
+  bits con trama (dithering) y niebla.
+- Texturas pintadas píxel a píxel por código, con semilla fija (`mulberry32`).
+- El chucao modelado con primitivas: cuerpo, cabeza, alas, cola, pico y patas.
+- Un comportamiento por estados (quieto, saltar, picotear, cantar) simulado a
+  15 Hz.
+- Un canto sintetizado con Web Audio (que aquí se reemplaza por los clips
+  reales).
+- Una cámara orbital y ventanas de diálogo con estilo de RPG azul.
+
+La visualización debe ocupar **toda la página**, sin el panel de estadísticas
+ni el menú de opciones que tiene el prototipo.
+
+## 4. Datos (del repo principal)
+
+Se generan con `python3 python_scripts/build_game_data.py`, en la carpeta
+`web/data/game/` del repo `canija2000/infovis_2026-2`.
+
+**Cómo obtenerlos:**
+- Una vez hecho el merge a `main`, se publican en GitHub Pages:
+  `https://canija2000.github.io/infovis_2026-2/data/game/index.json` (Pages
+  permite pedirlos desde otro sitio).
+- Durante el desarrollo, copiarlos a este repo (por ejemplo a
+  `public/data/game/`) con un script de sincronización, y copiar también los
+  cantos de `web/audio/`.
+
+**Fuente:** GBIF, 11 descargas anuales de Aves en Chile, principalmente
+eBird. La métrica base es `reportDays`: los días del mes en que la especie se
+registró en la región. No es un conteo de individuos. Solo se usan **los años
+2017–2024**, que están completos; 2016 es parcial y 2025–26 no tienen eBird.
+
+### Advertencia: el esfuerzo de muestreo
+
+El esfuerzo de observación crece unas 2,5 veces entre 2017 y 2024 y varía
+mucho entre regiones. Por eso **nunca se comparan `reportDays` crudos entre
+años o regiones**. Usar `share` (‰ de lo registrado en esa región-mes-año),
+`yearIndex`, `topRegions` y `bestYear`, que ya vienen corregidos.
+
+### `index.json` (se carga al inicio)
+
+- **Campos generales:**
+  - `years`: `[2017 … 2024]`.
+  - `classes`: `residente`, `visitante_estival`, `visitante_invernal`, `ocasional`.
+  - `classColors`.
+  - `months`: nombres en español.
+  - `seasons`: estación de cada mes en el hemisferio sur.
+  - `notes`: definición de cada métrica.
+  - `dois`: para citar.
+- **`regions[]`**, ordenadas de norte a sur, `id` 1–16:
+  - `code`, `name`, `fullName`, `lat`, `lon`.
+  - `file`: el JSON de la región.
+  - `biomes`: escenarios propuestos, como `["ciudad","matorral","rio","cordillera"]`.
+    Es una propuesta de diseño, no un dato.
+  - `topResidents`, `topSummer`, `topWinter`: ids de las especies más
+    frecuentes de cada clase.
+  - `characteristic`: especies con mayor *lift*, es decir, más propias de la
+    región que del país. Evitan que todas las regiones muestren a los mismos
+    chincoles.
+  - `months[12]`: `{richness, residente, visitante_estival, visitante_invernal, effort}`
+    del año típico.
+  - `yearRichness`: riqueza máxima mensual de cada año.
+- **`species[]`**, `id` = sid:
+  - `sciName`, `comName`.
+  - `class`: clase nacional. `regionalClass`: `{rid: clase}`.
+  - `peakMonth`: 0 = enero. `phase`, `seasonality` (0–1).
+  - `monthsPresent`: bitmask; bit 0 = enero.
+  - `profile[12]`: 100 = mes pico.
+  - `yearIndex[8]`: 100 = año promedio, 2017…2024.
+  - `bestYear`, `topRegions` (3 ids), `regionsPresent`, `reportDays`.
+  - `clip`: `{src, grain, url, recordist, license, type, country}` o `null`.
+    `src` es relativo a la raíz de la web del repo principal, como
+    `audio/XC123.mp3`.
+  - `images`: URL de la API de GBIF para buscar fotos de la especie en Chile.
+  - `habitat`, `morphology`, `palette`: **están en `null` y hay que
+    completarlos** (ver §5).
+
+### `region-<CODE>.json` (carga diferida al entrar al portal)
+
+- **`typical[12]`**: el elenco de cada mes del año típico. Cada entrada es
+  `[sid, cls, freq‰, share‰, lift, prof, years]`.
+  - Trae hasta 40 especies regulares presentes, ordenadas por frecuencia, más
+    hasta 6 ocasionales al final (`cls` = 3).
+- **`years["2017"…"2024"][12]`**: `{richness, effort, cast}`.
+  - `cast` son las 30 especies con más registros, cada una como
+    `[sid, reportDays, share‰]`.
+
+### Selección sugerida de especies en escena, por mes
+
+Tomar unas 4 residentes, más los visitantes presentes, más 1 o 2
+características (`lift` alto). Cada tanto, con baja probabilidad, aparece una
+ocasional. La frecuencia de canto y de aparición se pondera por `share` o
+`freq`.
+
+### Textos generados desde datos
+
+- **Diálogo de un ave:**
+  - Meses de presencia: desde `monthsPresent` o `profile` ≥ 20.
+  - Mes favorito: `peakMonth`.
+  - Mejor año: `bestYear`, expresado como "me registraron más que nunca en
+    relación con las demás aves", no como un conteo.
+  - Región preferida: `topRegions[0]`.
+  - Clase en esta región: `regionalClass[rid]`.
+- **Bienvenida a una región:** riqueza del mes, los `top*` y `characteristic`.
+  Para un año concreto, los visitantes que más destacaron por `share`.
+
+## 5. Lo que falta conseguir
+
+1. **Hábitat y morfología: AVONET.** Base abierta con todas las aves del
+   mundo (Tobias et al. 2022, *Ecology Letters*). Trae hábitat, largo del
+   pico, del ala y de la cola, masa, nicho trófico y migración. Hacer el cruce
+   por `sciName`, con cuidado con los sinónimos: el repo principal tiene
+   `gbif/synonyms_xc.json`. Sirve para dos cosas:
+   - Ubicar cada ave en un escenario: bosque, humedal o costa, matorral,
+     ciudad, altiplano o estepa, mar.
+   - Parametrizar los modelos.
+2. **Imágenes y colores: GBIF / iNaturalist.** El campo `images` apunta a
+   `api.gbif.org/v1/occurrence/search?mediaType=StillImage&country=CL&scientificName=…`
+   (las fotos vienen en `results[].media[].identifier`). Las licencias varían
+   por imagen (CC0, CC-BY, CC-BY-NC). **Usar las fotos como referencia para
+   extraer una paleta** de 5 o 6 colores (dorso, vientre, cabeza, garganta,
+   ala, pico), no publicarlas. Hacerlo semiautomático (cuantización de color
+   sobre el ave recortada) y corregirlo a mano para las especies del demo.
+3. **Modelos de aves.** No se hace uno a mano por especie. Se hacen entre 8 y
+   10 **modelos base paramétricos** en el estilo del chucao: paseriforme,
+   tapaculo, picaflor, playero, gaviota o ave marina, pato, rapaz, garza, loro
+   y paloma. Cada especie aporta tamaño, proporciones de pico y cola, y su
+   paleta.
+4. **Escenarios.** Entre 6 y 8 escenarios reutilizables (desierto costero,
+   altiplano con bofedal, matorral, ciudad o parque, humedal o río, bosque
+   templado, estepa, costa o fiordo). Cada región se compone con 2 a 4 de
+   ellos según `biomes`.
+
+## 6. Audio
+
+- **Clips:** 461 mp3 recortados de Xeno-canto en `web/audio/`. `clips.json`
+  guarda autor, licencia y URL; hay que mostrar los créditos. El archivo
+  `-g.mp3` es un fragmento corto de cada clip.
+- **Sonido espacial:** Web Audio con `PannerNode` (el volumen baja con la
+  distancia al avatar).
+- **Director de coro:** limita cuántas aves cantan a la vez (máximo 2 o 3) y
+  hace que cada ave cante con una probabilidad proporcional a su presencia en
+  el mes.
+- **Precarga:** cargar solo los clips de la región activa.
+
+## 7. MVP propuesto
+
+1. PRESS START, luego el menú con las 16 regiones flotantes (solo la
+   Metropolitana entra).
+2. La escena de la Región Metropolitana en el año típico, con 8 a 10 especies,
+   3 o 4 modelos base y 2 escenarios (ciudad o parque y matorral).
+3. Hover con el contorno de color por clase, clic con el diálogo desde datos,
+   cantos reales y el cartel de bienvenida.
+4. Ciclo de 3 minutos con llegadas y salidas, y cambio de luz por estación.
+5. Después: selector de año, las demás regiones, libreta de campo y HUD.
+
+## 8. Tecnología sugerida
+
+- Three.js (el prototipo usa r128 global desde cdnjs; se puede migrar a ES
+  modules o a Vite si conviene).
+- HTML, CSS y JS sin framework pesado, en español y sin dependencias de
+  servidor. Debe poder publicarse como sitio estático en GitHub Pages.
+- Mantener la resolución interna baja (unos 240p, escalada con `pixelated`) y
+  la animación a 15 fps: es parte de la estética y ayuda al rendimiento.
+
+## 9. Créditos y citas
+
+- **GBIF.org (2026):** GBIF Occurrence Downloads, Aves, Chile. Los DOIs están
+  en `index.json → dois`.
+- **Xeno-canto:** grabaciones con licencia Creative Commons; autor y licencia
+  por clip.
+- **AVONET:** Tobias et al. 2022, si se usa.
+- **Metodología:** `docs/metodologia-datos.md` §10 del repo principal (año
+  típico, clasificación estacional, corrección por esfuerzo).
