@@ -50,10 +50,17 @@ export const VOICE = {
 };
 export const MVP = VOICE; // compatibilidad
 
-// Especies destacadas de una región: {sciName: escena}.
-export function featuredIn(index, code) {
+// Especies destacadas de una región (region-<CODE>.json → featured = {sid: {scene, palette, images}}).
+// Devuelve {sciName: escena} y deja la paleta de cada una en su ficha de especie.
+export function featuredIn(index, region) {
   const out = {};
-  for (const sp of index.species) { const sc = sp.habitat?.scenes?.[code]; if (sc) out[sp.sciName] = sc; }
+  for (const [sid, f] of Object.entries(region.featured || {})) {
+    const sp = index.byId.get(+sid);
+    if (!sp) continue;
+    sp.palette = f.palette || sp.palette;
+    sp.refImages = f.images;
+    out[sp.sciName] = f.scene;
+  }
   return out;
 }
 

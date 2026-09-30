@@ -241,8 +241,9 @@ export class Director {
   // Especies destacadas de la región que viven en esta escena y están presentes este mes.
   castFor(sceneKey, month) {
     const out = [];
-    for (const sp of this.index.species) {
-      if (sp.habitat?.scenes?.[this.regionCode] !== sceneKey || !presentIn(sp, month)) continue;
+    for (const [sid, feat] of Object.entries(this.region.featured || {})) {
+      const sp = this.index.byId.get(+sid);
+      if (!sp || feat.scene !== sceneKey || !presentIn(sp, month)) continue;
       const cls = sp.regionalClass[String(this.regionId)];
       if (!cls) continue;
       const f = freqOf(this.region, sp.id, month);

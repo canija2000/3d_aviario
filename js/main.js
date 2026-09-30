@@ -240,7 +240,7 @@ async function enterRegion(code) {
   await fade(true, 'Cargando la región…');
   G.reg = await loadRegion(G.index, code);
   try { G.props = await loadJSON(DATA_BASE + `props-${code}.json`); } catch { G.props = null; }
-  G.feat = featuredIn(G.index, code);
+  G.feat = featuredIn(G.index, G.reg.region);
   G.director = new Director({ index: G.index, region: G.reg.region, regionId: G.reg.meta.id, regionCode: code, root: null, onSing });
   G.mode = 'scene';
   await loadSceneKey(sceneOrder()[0], null, false);
