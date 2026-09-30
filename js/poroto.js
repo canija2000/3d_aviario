@@ -114,7 +114,7 @@ export function buildPoroto() {
   P.update = (dt, heightAt, blocked) => {
     P.t += dt;
     if (P.travel) return travelStep(dt);
-    shadow.visible = true;
+    shadow.visible = root.visible;
     const bob = Math.sin(P.t * 12);
     let waddle = 0, sleep = false;
     if (P.state === 'walk' && P.target) {
@@ -207,6 +207,7 @@ export function buildPoroto() {
       T.done = true;
       groundMap.visible = false; groundMap.parent?.remove(groundMap);
       body.scale.setScalar(1.1);
+      root.visible = false; // sigue "dentro del mapa" hasta aparecer en el destino (main.js lo vuelve a mostrar)
       P.travel = null; P.state = 'idle';
       T.onDone?.();
     }

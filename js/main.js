@@ -274,6 +274,7 @@ async function enterRegion(code, opts = {}) {
   G.mode = 'scene';
   await loadSceneKey(sceneOrder()[0], null, false);
   if (opts.drop) { poroto.drop = 14; poroto.dropMsg = `¡Llegamos a ${G.reg.meta.name}!`; }
+  poroto.root.visible = true;
   $('hud').hidden = false;
   await fade(false);
   openDialog(welcomeText(G.index, G.reg.meta, G.month), [{ label: '¡Vamos!' }]);
@@ -730,7 +731,7 @@ function chooseRegion(code) {
   const heightAt = G.mode === 'scene' ? G.sc.heightAt : G.hubWorld.heightAt;
   poroto.startTravel(heightAt, async () => {
     blip(990, 0.12);
-    if (G.mode === 'scene' && G.reg?.meta.code === code) { poroto.drop = 14; return; }
+    if (G.mode === 'scene' && G.reg?.meta.code === code) { poroto.drop = 14; poroto.root.visible = true; return; }
     await enterRegion(code, { drop: true });
   });
 }
