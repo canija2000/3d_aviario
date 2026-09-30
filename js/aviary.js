@@ -51,6 +51,12 @@ export class BirdAgent {
   arrive() {
     const dest = this.choosePlace();
     const a = rnd(0, 6.28);
+    if (this.traits.noFly) { // ñandú y pingüino llegan caminando desde el borde
+      const x = Math.cos(a) * this.scene.half * 0.9, z = Math.sin(a) * this.scene.half * 0.9;
+      this.pos.set(x, this.groundY(x, z), z);
+      this.fly(dest, this.pos.distanceTo(dest) / 1.8);
+      return;
+    }
     this.pos.set(Math.cos(a) * this.scene.half, dest.y + 12, Math.sin(a) * this.scene.half);
     this.fly(dest, rnd(3, 4.5));
   }
@@ -59,6 +65,11 @@ export class BirdAgent {
     if (this.leaving) return;
     this.leaving = true; this.perch = null;
     const a = Math.atan2(this.pos.z, this.pos.x) + rnd(-0.6, 0.6);
+    if (this.traits.noFly) {
+      const x = Math.cos(a) * this.scene.half * 1.1, z = Math.sin(a) * this.scene.half * 1.1;
+      this.fly(new THREE.Vector3(x, this.groundY(x, z), z), 8);
+      return;
+    }
     this.fly(new THREE.Vector3(Math.cos(a) * this.scene.half * 1.3, this.pos.y + 14, Math.sin(a) * this.scene.half * 1.3), rnd(3, 4));
   }
 
@@ -71,6 +82,12 @@ export class BirdAgent {
       this.perch = w; this.swimming = true;
       return w.clone();
     }
+    if (this.traits.trunk && sc.trunks?.length && Math.random() < 0.75) { // carpintero: en el tronco
+      const t = sc.trunks[Math.random() * sc.trunks.length | 0];
+      this.onTrunk = t; this.perch = t.pos.clone();
+      return t.pos.clone();
+    }
+    this.onTrunk = null;
     const pool = this.plan === 'picaflor' ? sc.flowers : sc.perches;
     if (pool.length && Math.random() > this.groundy) {
       const near = pool.filter(p => Math.hypot(p.x, p.z) < sc.half * 0.6);
@@ -175,11 +192,13 @@ export class BirdAgent {
       const k = Math.min(1, this.t / this.dur);
       const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
       this.pos.lerpVectors(this.from, this.to, e);
-      y = this.pos.y + Math.sin(Math.PI * k) * Math.min(3, this.from.distanceTo(this.to) * 0.25);
+      y = this.traits.noFly ? this.groundY(this.pos.x, this.pos.z) : this.pos.y + Math.sin(Math.PI * k) * Math.min(3, this.from.distanceTo(this.to) * 0.25);
       this.k = k;
+      if (this.traits.noFly) { const e2 = k; this.pos.lerpVectors(this.from, this.to, e2); }
       if (k >= 1) {
         this.pos.copy(this.to);
         if (this.leaving) { this.gone = true; return; }
+        if (this.onTrunk) this.heading = this.onTrunk.face;
         if (this.afterFly === 'soar') { this.afterFly = null; this.setState('soar', rnd(8, 16)); }
         else if (this.plan === 'picaflor') this.setState('hover', rnd(1.2, 3));
         else this.setState('idle', rnd(0.8, 2));
@@ -204,9 +223,12 @@ export class BirdAgent {
     m.group.position.set(this.pos.x, y, this.pos.z);
     m.group.rotation.y = this.heading;
     const soaring = this.state === 'soar';
-    const flying = this.state === 'fly' || this.state === 'hover' || soaring || this.plan === 'picaflor' && this.state !== 'idle';
+    const walking = this.state === 'fly' && this.traits.noFly;
+    const flying = !walking && (this.state === 'fly' || this.state === 'hover' || soaring || this.plan === 'picaflor' && this.state !== 'idle');
     const hopK = this.state === 'hop' ? Math.sin(Math.PI * this.k) : 0;
-    for (const l of m.legs) { l.rotation.z = flying ? 0.9 : -0.7 * hopK; }
+    const stride = walking ? Math.sin(performance.now() / 110) : 0;
+    m.legs.forEach((l, i) => { l.rotation.z = flying ? 0.9 : walking ? stride * (i ? 0.5 : -0.5) : -0.7 * hopK; });
+    m.group.rotation.z = this.traits.waddle && (walking || this.state === 'hop') ? Math.sin(performance.now() / 90) * 0.18 : 0;
     const flap = soaring ? 0.05 * Math.sin(performance.now() / 400) : flying ? Math.sin(performance.now() / (this.plan === 'picaflor' ? 12 : 60)) : 0;
     for (const w of m.wings) { w.rotation.x = w.userData.side * (soaring ? 1.35 + flap : flying ? 0.3 + flap * 1.1 : 0); }
     for (const l of m.legs) l.visible = !(this.swimming && !flying);
@@ -218,13 +240,14 @@ export class BirdAgent {
       bodyTilt = -0.4 * tri; headTilt = -0.9 * jab * tri - 0.2;
     } else if (this.state === 'sing') {
       bodyTilt = 0.12; headTilt = 0.5; open = 0.4 * this.noteAmp; puff = 1 + 0.08 * this.noteAmp;
-    } else if (this.state === 'fly' || soaring) bodyTilt = -0.35;
-    if (this.swimming && !flying) bodyTilt = -0.12;
+    } else if ((this.state === 'fly' && !walking) || soaring) bodyTilt = -0.35;
+    if (this.swimming && !flying) bodyTilt = this.plan === 'pinguino' ? -1.2 : -0.12; // el pingüino nada acostado
+    if (this.onTrunk && this.state !== 'fly') bodyTilt = 0.55; // carpintero vertical contra el tronco
     m.bodyPivot.rotation.z = bodyTilt + 0.1 * hopK;
     m.head.rotation.y = this.yaw;
     m.head.rotation.z = headTilt;
-    m.lower.rotation.z = -0.18 - open;
-    m.upper.rotation.z = -0.12 + open * 0.3;
+    m.lower.rotation.z = m.beakRest[1] - open;
+    m.upper.rotation.z = m.beakRest[0] + open * 0.3;
     m.torso.scale.setScalar(puff);
     m.tail.rotation.z = m.tailRest - 0.4 * this.flick + 0.35 * hopK + (flying ? 0.5 : 0);
   }
@@ -247,7 +270,7 @@ export class Director {
       const cls = sp.regionalClass[String(this.regionId)];
       if (!cls) continue;
       const f = freqOf(this.region, sp.id, month);
-      out.push({ sp, freq: f, n: f > 900 ? 3 : f > 500 ? 2 : 1 });
+      out.push({ sp, freq: f, n: f > 900 ? 3 : 2 }); // mínimo 2: las destacadas deben verse aunque eBird las registre poco
     }
     return out;
   }

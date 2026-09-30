@@ -28,6 +28,13 @@ export const PLANS = {
   pato: { tilt: 0.04, tail: 0.15, head: 0.5, legs: 0.45, body: [1.35, 0.78, 0.9], neck: 0.15, neckLen: 0.2, wing: 1.0, bill: true, swim: true },
   rapaz: { tilt: 0.45, tail: 0.25, head: 0.4, legs: 0.9, body: [1.3, 0.9, 0.85], neck: 0.05, neckLen: 0.2, wing: 1.8, soar: true },
   codorniz: { tilt: 0.1, tail: 0.1, head: 0.55, legs: 0.7, body: [1.2, 0.95, 0.9], neck: 0.05, topknot: true },
+  // Magallanes
+  nandu: { tilt: 0.3, tail: 0.1, head: 0.4, legs: 3.0, body: [1.3, 1.1, 1.0], neck: 0.1, neckLen: 1.25, wing: 0.55, noFly: true, stride: 2.2 },
+  pinguino: { tilt: 1.35, tail: 0.1, head: 0.5, legs: 0.35, body: [1.2, 0.85, 0.8], neck: 0, wing: 0.8, swim: true, noFly: true, waddle: true, stride: 0.6 },
+  flamenco: { tilt: 0.5, tail: 0.2, head: 0.35, legs: 3.0, body: [1.05, 0.7, 0.62], neck: 0.1, neckLen: 1.3, wing: 1.3, bentBill: true },
+  cisne: { tilt: 0.05, tail: 0.15, head: 0.42, legs: 0.45, body: [1.5, 0.85, 1.0], neck: 0.1, neckLen: 1.2, wing: 1.3, bill: true, swim: true },
+  loro: { tilt: 0.7, tail: 0.5, head: 0.6, legs: 0.7, body: [1.0, 0.85, 0.8], neck: 0, hookBill: true },
+  carpintero: { tilt: 0.95, tail: 0.6, head: 0.55, legs: 0.7, body: [1.05, 0.8, 0.75], neck: 0, crest: true, trunk: true },
 };
 const FAMILY_PLAN = {
   Rhinocryptidae: 'cola_alta', Troglodytidae: 'cola_alta',
@@ -39,8 +46,11 @@ const FAMILY_PLAN = {
   Anatidae: 'pato', Rallidae: 'pato',
   Cathartidae: 'rapaz', Accipitridae: 'rapaz', Falconidae: 'rapaz', Strigidae: 'rapaz', Tytonidae: 'rapaz',
   Odontophoridae: 'codorniz', Phasianidae: 'codorniz', Tinamidae: 'codorniz',
+  Rheidae: 'nandu', Spheniscidae: 'pinguino', Phoenicopteridae: 'flamenco', Psittacidae: 'loro', Picidae: 'carpintero',
 };
-export const PLAN_OVERRIDE = { 'Vanellus chilensis': 'playero' };
+export const PLAN_OVERRIDE = {
+  'Vanellus chilensis': 'playero', 'Cygnus melancoryphus': 'cisne', 'Coscoroba coscoroba': 'cisne',
+};
 
 export function planFor(sp) {
   if (PLAN_OVERRIDE[sp.sciName]) return PLAN_OVERRIDE[sp.sciName];
@@ -163,11 +173,12 @@ export function buildBird(sp, plan = 'paseriforme') {
   const bl = 0.4 * fBeak * (plan === 'picaflor' ? 1.6 : 1);
   const br = 0.12 * clamp(fDepth * (fBeak > 1.4 ? 0.7 : 1), 0.3, 1.8);
   const flat = pl.bill ? [0.3, 1.9] : [0.6, 1];
-  const upper = add(head, new THREE.ConeGeometry(br, bl, 4).rotateZ(-Math.PI / 2).translate(bl / 2, 0, 0).scale(1, flat[0], flat[1]), mBeak);
-  upper.position.set(hs * 0.86, 0, 0); upper.rotation.z = -0.12;
+  const hook = pl.hookBill ? 1.9 : 1; // pico de loro: corto y alto
+  const upper = add(head, new THREE.ConeGeometry(br * hook, bl / hook, 4).rotateZ(-Math.PI / 2).translate(bl / hook / 2, 0, 0).scale(1, flat[0], flat[1]), mBeak);
+  upper.position.set(hs * 0.86, 0, 0); upper.rotation.z = pl.bentBill ? -0.75 : pl.hookBill ? -0.45 : -0.12;
   const pouch = pl.pouch ? [2.4, 0.9] : [0.75, 0.4];
   const lower = add(head, new THREE.ConeGeometry(br * pouch[0], bl * 0.82, 4).rotateZ(-Math.PI / 2).translate(bl * 0.41, 0, 0).scale(1, pouch[1], flat[1]), pl.pouch ? mat(plain, { tint: 0xc89868 }) : mBeak);
-  lower.position.set(hs * 0.84, -0.05, 0); lower.rotation.z = -0.18;
+  lower.position.set(hs * 0.84, -0.05, 0); lower.rotation.z = pl.bentBill ? -0.8 : -0.18;
   if (pl.topknot) { // penacho de la codorniz, curvado hacia adelante
     const k = add(head, new THREE.BoxGeometry(0.08, 0.45, 0.05).translate(0, 0.22, 0), mat(plain, { tint: 0x201a18 }));
     k.position.set(hs * 0.2, hs * 0.8, 0); k.rotation.z = -0.5;
@@ -201,6 +212,7 @@ export function buildBird(sp, plan = 'paseriforme') {
   steady(bird);
   return {
     group: bird, bodyPivot, torso, head, headBase, tail, tailRest: pl.tail, wings, legs, upper, lower, plan,
+    beakRest: [upper.rotation.z, lower.rotation.z],
     setOutline(color) {
       if (color) outlineMat.color.set(color);
       for (const o of outlines) o.visible = !!color;

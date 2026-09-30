@@ -47,6 +47,22 @@ export const VOICE = {
   'Columbina picui': { art: 'la', hi: '¡Cuú-cuú!' },
   'Sephanoides sephaniodes': { art: 'el', hi: '¡Tsi-tsi-tsi!' },
   'Columba livia': { art: 'la', hi: '¡Gru-gruu!' },
+  'Chloephaga picta': { art: 'el', hi: '¡Sip-sip! (y la hembra: ¡Grrr!)' },
+  'Rhea pennata': { art: 'el', hi: '(el ñandú casi no canta) ¡Hmmm-bum!' },
+  'Vultur gryphus': { art: 'el', hi: '(los cóndores no cantan) ¡Fshhh!' },
+  'Phoenicopterus chilensis': { art: 'el', hi: '¡Honk-honk!' },
+  'Aphrastura spinicauda': { art: 'el', hi: '¡Tri-tri-tri-rayadito!' },
+  'Enicognathus ferrugineus': { art: 'la', hi: '¡Crii-crii-cachaña!' },
+  'Campephilus magellanicus': { art: 'el', hi: '¡Tok… tok-tok!' },
+  'Phrygilus patagonicus': { art: 'el', hi: '¡Tsuit-tsuit!' },
+  'Spheniscus magellanicus': { art: 'el', hi: '¡Hiaaa-hiaaa! (como un burro)' },
+  'Leucocarbo atriceps': { art: 'el', hi: '¡Arrk!' },
+  'Haematopus leucopodus': { art: 'el', hi: '¡Pii-pii-piip!' },
+  'Stercorarius chilensis': { art: 'el', hi: '¡Kek-kek-kiaah!' },
+  'Cygnus melancoryphus': { art: 'el', hi: '¡Uíp-uíp!' },
+  'Tachyeres patachonicus': { art: 'el', hi: '¡Graak! (y a remar)' },
+  'Lophonetta specularioides': { art: 'el', hi: '¡Cuac-cuac-cuaac!' },
+  'Coscoroba coscoroba': { art: 'el', hi: '¡Cos-co-rooo-ba!' },
 };
 export const MVP = VOICE; // compatibilidad
 

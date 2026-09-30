@@ -134,7 +134,36 @@ function addLabel(html, pos, color = '#eef1f8', cls = '') {
   worldLabels.push(l);
   return l;
 }
-function clearLabels() { for (const l of worldLabels) l.el.remove(); worldLabels.length = 0; }
+function clearLabels() { for (const l of worldLabels) l.el.remove(); worldLabels.length = 0; clearBirdLabels(); }
+
+// Nombre de cada ave siempre visible (se atenúa con la distancia; N o el botón NOMBRES lo apagan).
+const birdLabels = new Map(); // agente → elemento
+let showNames = true;
+function clearBirdLabels() { for (const el of birdLabels.values()) el.remove(); birdLabels.clear(); }
+const _b = new THREE.Vector3();
+function updateBirdLabels() {
+  if (G.mode !== 'scene' || !G.director) { clearBirdLabels(); return; }
+  const alive = new Set(G.director.agents);
+  for (const [a, el] of birdLabels) if (!alive.has(a)) { el.remove(); birdLabels.delete(a); }
+  for (const a of G.director.agents) {
+    let el = birdLabels.get(a);
+    if (!el) {
+      el = document.createElement('div'); el.className = 'blabel';
+      el.textContent = a.sp.comName; el.style.color = a.color;
+      document.body.appendChild(el); birdLabels.set(a, el);
+    }
+    _b.copy(a.m.group.position); _b.y += (a.m.height ?? 2.5) * a.s + 0.25;
+    const d = camera.position.distanceTo(_b);
+    _b.project(camera);
+    const show = showNames && a.state !== 'wait' && _b.z < 1 && Math.abs(_b.x) < 1.05 && Math.abs(_b.y) < 1.05 && d < 38;
+    el.hidden = !show;
+    if (!show) continue;
+    el.style.left = ((_b.x + 1) / 2 * window.innerWidth) + 'px';
+    el.style.top = ((1 - _b.y) / 2 * window.innerHeight) + 'px';
+    el.style.opacity = String(Math.max(0.35, Math.min(1, 1.35 - d / 30)));
+    el.classList.toggle('sing', !!a.singing);
+  }
+}
 const _v = new THREE.Vector3();
 function updateLabels() {
   for (const l of worldLabels) {
@@ -262,7 +291,7 @@ async function loadSceneKey(key, fromKey, withFade = true) {
   for (let i = 1; i < dirs.length; i++) if (dirs[i].a - dirs[i - 1].a < 0.6) dirs[i].a = dirs[i - 1].a + 0.6;
   const EXIT_R = WORLD / 2 * 0.62;
   const scene = new THREE.Scene();
-  const sc = buildScene(key, data, G.props, dirs.map(d => d.a), EXIT_R);
+  const sc = buildScene(key, data, G.props, dirs.map(d => d.a), EXIT_R, G.reg.meta.lat < -44); // Aysén y Magallanes: inviernos con nieve
   scene.add(sc.root, poroto.root, poroto.shadow);
   G.world = scene; G.sc = sc; G.sceneKey = key;
   clearLabels();
@@ -571,6 +600,7 @@ function steerCamera(dt) {
 window.addEventListener('keydown', e => {
   if (G.mode === 'start' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); start(); return; }
   if (e.key === 'Escape') { closeDialog(); $('panel').hidden = true; }
+  if ((e.key === 'n' || e.key === 'N') && G.mode === 'scene') toggleNames();
   if (['q', 'e', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(e.key.toLowerCase())) {
     if (e.key.startsWith('Arrow')) e.preventDefault();
     keys.add(e.key.toLowerCase());
@@ -597,6 +627,8 @@ function birdClicked(a) {
 // ------------------------------------------------------------------ paneles
 $('b-pause').onclick = () => { G.paused = !G.paused; updateHud(); blip(); };
 $('b-next').onclick = () => { setMonth(G.month + 1); blip(); };
+function toggleNames() { showNames = !showNames; $('b-names').classList.toggle('off', !showNames); }
+$('b-names').onclick = toggleNames;
 $('b-sound').onclick = () => { G.muted = !G.muted; setMuted(G.muted); $('b-sound').classList.toggle('off', G.muted); };
 $('b-map').onclick = () => {
   const sc = G.reg.terrain.scenes;
@@ -626,7 +658,7 @@ $('b-credits').onclick = () => {
   <p><b>Cantos:</b> Xeno-canto (licencias Creative Commons por grabación):</p><ul>${clips}</ul>
   <p>Las especies sin grabación en el set (como la Turca) tienen un canto sintético.</p>
   <p><b>Morfología y hábitat:</b> AVONET (Tobias et al. 2022, CC BY 4.0) y EltonTraits 1.0 (Wilman et al. 2014, CC0). <b>Paletas:</b> derivadas de fotos de referencia de iNaturalist (CC0 / CC BY / CC BY-SA; autores en los datos), con zonas anotadas a mano o con un modelo de visión (Qwen3-VL) y revisadas por una persona. <b>Terreno:</b> AWS Terrain Tiles, ESA WorldCover 2021 (CC BY 4.0) y © OpenStreetMap (ODbL).</p>
-  <p class="dim">Clic para caminar · clic en un ave para conocerla · rueda: zoom · Q/E o ←/→: girar la cámara.</p>`);
+  <p class="dim">Clic para caminar · clic en un ave para conocerla · rueda: zoom · Q/E o ←/→: girar la cámara · N: nombres de las aves.</p>`);
 };
 
 // ------------------------------------------------------------------ inicio
@@ -694,6 +726,7 @@ function frame(now) {
     }
     if (G.world) renderer.render(G.world, camera);
     updateLabels();
+    updateBirdLabels();
   }
   requestAnimationFrame(frame);
 }
