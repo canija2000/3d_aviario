@@ -103,6 +103,16 @@ function propKinds(R) {
       [new THREE.CylinderGeometry(0.05, 0.07, 2.2, 4).translate(0, 1.6, 0), m(plainTex, { tint: 0x6a7a40 })],
       [new THREE.IcosahedronGeometry(0.25, 0).scale(1, 2.2, 1).translate(0, 2.6, 0), m(plainTex, { tint: 0x3a8a8a })]], perch: 2.9, flower: true },
     eucalipto: { parts: [trunk(4.5, 0.2), blob(1.3, 5, 1.5, [96, 128, 104])], perch: 6.2 },
+    // Magallanes
+    lenga: { parts: [trunk(3.4, 0.24), blob(1.8, 3.9, 0.7, [70, 110, 52]), blob(1.2, 4.9, 0.6, [80, 120, 58])], perch: 5.2, deciduous: true, autumn: [2.3, 0.9, 0.5], trunkH: 3.2 },
+    nirre: { parts: [trunk(1.8, 0.14), blob(1.1, 2.1, 0.75, [96, 124, 60])], perch: 2.8, deciduous: true, autumn: [2.1, 1.1, 0.5], trunkH: 1.6 },
+    calafate: { parts: [[new THREE.IcosahedronGeometry(0.6, 0).scale(1, 0.75, 1).translate(0, 0.45, 0),
+      m(makeTex(16, 16, () => R() < 0.12 ? [72, 40, 110] : vary([72, 100, 52], 10)), { snowable: true })]], perch: 1.0 },
+    mata_negra: { parts: [blob(0.55, 0.35, 0.7, [40, 58, 36])], perch: 0.7 },
+    tronco_caido: { parts: [[new THREE.CylinderGeometry(0.25, 0.3, 3.2, 5).rotateZ(Math.PI / 2).translate(0, 0.25, 0), m(bark, { snowable: true })]], perch: 0.55 },
+    madriguera: { parts: [[new THREE.SphereGeometry(0.55, 6, 3, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.45, 1), m(makeTex(8, 8, (x, y) => (x > 2 && x < 6 && y > 3) ? [20, 16, 14] : vary([110, 96, 70], 10)))]], perch: 0.3 },
+    muelle: { parts: [[new THREE.BoxGeometry(1.2, 0.12, 4).translate(0, 0.9, 0), m(signTex)],
+      ...[-1.6, 0, 1.6].flatMap(z => [-0.5, 0.5].map(x => [new THREE.CylinderGeometry(0.08, 0.08, 1.8, 4).translate(x, 0, z), m(bark)]))], perch: 1.0 },
   };
 }
 
@@ -113,7 +123,7 @@ const DENSITY = { arbol: 0.12, arbusto: 0.2, cactus: 0.05, roca: 0.05, junco: 0.
 // - Claro central: dentro de CLEAR_R la densidad cae a CLEAR_MIN y sube suave hasta CLEAR_R2.
 // - Senderos: franja de PATH_W unidades sin props desde el centro a cada salida.
 // - MAX_PER_KIND: tope de instancias por tipo de prop.
-export const SCENE_DENSITY = { ciudad: 0.55, matorral: 0.45, rio: 0.5, cordillera: 1, costa: 0.7, humedal: 0.6 };
+export const SCENE_DENSITY = { ciudad: 0.55, matorral: 0.45, rio: 0.5, cordillera: 1, costa: 0.7, humedal: 0.6, estepa: 1, bosque: 0.4, fiordo: 0.8 };
 const CLEAR_R = 7, CLEAR_R2 = 18, CLEAR_MIN = 0.1, PATH_W = 2.2, MAX_PER_KIND = 70, BUILDING_CLEAR = 15;
 
 const segDist = (px, pz, ax, az, bx, bz) => {
@@ -123,7 +133,7 @@ const segDist = (px, pz, ax, az, bx, bz) => {
 };
 
 // exitAngles: dirección (rad) de cada sendero desde el centro; exitR: distancia del letrero.
-export function buildScene(key, data, props, exitAngles = [], exitR = 20) {
+export function buildScene(key, data, props, exitAngles = [], exitR = 20, austral = false) {
   const n = data.height.length ** 0.5 | 0;
   const cell = WORLD / n;
   const unitPerM = cell / data.cellM;
@@ -187,7 +197,7 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20) {
 
   // ---- props ----
   const kinds = propKinds(R);
-  const perches = [], flowers = [], crowns = [], obstacles = [];
+  const perches = [], flowers = [], crowns = [], obstacles = [], trunks = [];
   const EXIT_CLEAR = 3.5;
   const catalog = (props?.[key] || []).filter(p => kinds[p.id]);
   if (key === 'ciudad' && !catalog.some(p => p.tipo === 'edificio')) catalog.push({ id: 'edificio', tipo: 'edificio', cover: [4] });
@@ -203,6 +213,11 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20) {
     if (k.perch) perches.push(new THREE.Vector3(x, y + k.perch * (s.y ?? s), z));
     if (k.flower) flowers.push(new THREE.Vector3(x, y + 0.5, z));
     if (k.building) obstacles.push({ x, z, r: 1.3 * (s.x ?? s) });
+    if (k.trunkH || ((k.perch ?? 0) > 2.5 && !k.building)) { // tronco para trepadores (carpintero)
+      const a = R() * Math.PI * 2, r = 0.28 * (s.x ?? s);
+      const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
+      trunks.push({ pos: new THREE.Vector3(px, y + (k.trunkH ?? 2) * 0.55 * (s.y ?? s), pz), face: Math.atan2(Math.sin(a), -Math.cos(a)) });
+    }
   };
   const exits = [];
   const count = {};
@@ -235,7 +250,7 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20) {
       list.forEach((mtx, j) => im.setMatrixAt(j, mtx));
       im.frustumCulled = false;
       root.add(im);
-      if (tag === 'crown') crowns.push({ im, id, mat: m, base: m.uniforms.uTint.value.clone(), deciduous: !!kinds[id].deciduous });
+      if (tag === 'crown') crowns.push({ im, id, mat: m, base: m.uniforms.uTint.value.clone(), deciduous: !!kinds[id].deciduous, autumn: kinds[id].autumn });
     }
   }
 
@@ -246,12 +261,14 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20) {
     for (const c of crowns) {
       c.im.visible = true;
       if (!c.deciduous) continue;
-      if (season === 'otoño') c.mat.uniforms.uTint.value.setRGB(1.8, 1.2, 0.5);
+      if (season === 'otoño') c.mat.uniforms.uTint.value.setRGB(...(c.autumn || [1.8, 1.2, 0.5])); // la lenga se pone roja
       else if (season === 'invierno') c.im.visible = false;
       else c.mat.uniforms.uTint.value.copy(c.base);
     }
     const snowBy = { cordillera: { invierno: 0.85, 'otoño': 0.25, primavera: 0.5, verano: 0.05 },
       matorral: { invierno: month === 6 ? 0.15 : 0 } };
+    // regiones australes: nieve en invierno en todas las escenas (menos en la costa, que es más templada)
+    if (austral) return { invierno: key === 'costa' || key === 'fiordo' ? 0.45 : 0.8, 'otoño': 0.15, primavera: 0.2, verano: 0 }[season];
     return snowBy[key]?.[season] ?? 0;
   }
 
@@ -280,7 +297,7 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20) {
     wpos.needsUpdate = true;
   }
 
-  return { root, heightAt, coverAt, perches, flowers, obstacles, exits, exitPts, setSeason, half, cell, n, groundMat, ground, waterSpots, seaY, animate };
+  return { root, heightAt, coverAt, perches, flowers, obstacles, trunks, exits, exitPts, setSeason, half, cell, n, groundMat, ground, waterSpots, seaY, animate };
 }
 
 // Letrero de sendero con texto pixelado.

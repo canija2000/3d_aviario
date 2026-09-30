@@ -262,7 +262,7 @@ async function loadSceneKey(key, fromKey, withFade = true) {
   for (let i = 1; i < dirs.length; i++) if (dirs[i].a - dirs[i - 1].a < 0.6) dirs[i].a = dirs[i - 1].a + 0.6;
   const EXIT_R = WORLD / 2 * 0.62;
   const scene = new THREE.Scene();
-  const sc = buildScene(key, data, G.props, dirs.map(d => d.a), EXIT_R);
+  const sc = buildScene(key, data, G.props, dirs.map(d => d.a), EXIT_R, G.reg.meta.lat < -44); // Aysén y Magallanes: inviernos con nieve
   scene.add(sc.root, poroto.root, poroto.shadow);
   G.world = scene; G.sc = sc; G.sceneKey = key;
   clearLabels();
