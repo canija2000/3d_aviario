@@ -68,6 +68,19 @@ export function buildPoroto() {
     const f = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.12, 0.18).translate(0.06, 0.06, 0), mat(plain, { tint: 0x5a3a28 }));
     f.position.set(0, 0, s * 0.2); root.add(f); feet.push(f);
   }
+  // mapa de papel: en las manos al consultarlo, y en el suelo como portal de viaje
+  const mapTex = makeTex(32, 24, (x, y) => {
+    if (x === 0 || y === 0 || x === 31 || y === 23) return [120, 92, 52];
+    const cx = 3 + y * 1.1 + Math.sin(y * 0.9) * 1.5; // Chile en miniatura (franja diagonal)
+    if (Math.abs(x - cx) < 1.6) return (x + y) % 5 === 0 ? [200, 150, 60] : [150, 110, 60];
+    if (x > cx + 1.6) return vary([96, 140, 180], 6); // mar
+    return vary([232, 216, 176], 6);
+  });
+  const mapMat = mat(mapTex, { twoSided: true });
+  const mapMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 0.55), mapMat);
+  mapMesh.position.set(0.62, 1.05, 0); mapMesh.rotation.y = Math.PI / 2; mapMesh.visible = false; body.add(mapMesh);
+  const groundMap = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.2).rotateX(-Math.PI / 2), mat(mapTex, { twoSided: true }));
+  groundMap.visible = false;
   const shadowTex = makeTex(16, 16, (x, y) => [18, 22, 14, Math.hypot(x - 7.5, y - 7.5) < 7.5 ? 170 : 0]);
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.0).rotateX(-Math.PI / 2), mat(shadowTex, { alpha: 2 }));
 
@@ -83,11 +96,25 @@ export function buildPoroto() {
     featherMat.uniforms.uTint.value.set(color || 0xffffff);
     P.featherTarget = targetPos || null;
   };
+  P.holdMap = on => { P.mapHeld = on; if (on) { P.target = null; P.state = 'idle'; P.idleFor = 0; } };
+  // Viaje: deja el mapa en el suelo, salta encima y se "absorbe" en espiral. onDone al terminar.
+  P.startTravel = (heightAt, onDone) => {
+    const dir = new THREE.Vector3(Math.cos(P.heading), 0, -Math.sin(P.heading));
+    const to = P.pos.clone().addScaledVector(dir, 1.5);
+    to.y = heightAt(to.x, to.z);
+    root.parent?.add(groundMap);
+    groundMap.position.set(to.x, to.y + 0.05, to.z); groundMap.rotation.y = P.heading; groundMap.scale.setScalar(0.01);
+    groundMap.visible = true; groundMap.material.uniforms.uFlash.value = 0;
+    P.mapHeld = false; P.target = null; P.state = 'travel';
+    P.travel = { t: 0, from: P.pos.clone(), to, onDone, done: false, heightAt };
+  };
   P.walkTo = (v, onArrive) => { P.target = v.clone(); P.onArrive = onArrive || null; P.idleFor = 0; P.state = 'walk'; };
   P.write = () => { P.writing = 2.2; P.idleFor = 0; };
 
   P.update = (dt, heightAt, blocked) => {
     P.t += dt;
+    if (P.travel) return travelStep(dt);
+    shadow.visible = root.visible;
     const bob = Math.sin(P.t * 12);
     let waddle = 0, sleep = false;
     if (P.state === 'walk' && P.target) {
@@ -132,6 +159,9 @@ export function buildPoroto() {
     notebook.visible = pencil.visible = P.writing > 0;
     if (P.writing > 0) { pencil.position.x = 0.5 + Math.sin(P.t * 30) * 0.05; body.rotation.z = -0.15; }
     else body.rotation.z = sleep ? -0.25 : 0;
+    // mapa en las manos
+    mapMesh.visible = !!P.mapHeld;
+    if (P.mapHeld) { arms.forEach((a, i) => { a.rotation.z = -1.25; a.rotation.x = (i ? -1 : 1) * 0.5; }); mapMesh.rotation.z = Math.sin(P.t * 2) * 0.05; }
     // estación
     scarf.visible = P.season === 'invierno';
     const shiver = P.season === 'invierno' && P.state === 'idle' ? Math.sin(P.t * 50) * 0.015 : 0;
@@ -150,6 +180,41 @@ export function buildPoroto() {
     } else { featherPivot.rotation.y *= 0.9; feather.rotation.z = 0.5 + Math.sin(P.t * 2) * 0.05; }
     return { sleep };
   };
+
+  function travelStep(dt) {
+    const T = P.travel;
+    T.t += dt;
+    const t = T.t;
+    const hy = T.heightAt(T.to.x, T.to.z);
+    if (t < 0.5) { // el mapa se despliega en el suelo; Poroto se agacha
+      groundMap.scale.setScalar(Math.max(0.01, t / 0.5));
+      body.scale.set(1.15, 1.1 * (1 - 0.12 * Math.sin(Math.PI * t / 0.5)), 1.15);
+      root.position.copy(P.pos);
+    } else if (t < 1.1) { // salto
+      const k = (t - 0.5) / 0.6;
+      const p = T.from.clone().lerp(T.to, k);
+      root.position.set(p.x, THREE.MathUtils.lerp(T.from.y, hy, k) + Math.sin(Math.PI * k) * 1.6, p.z);
+      body.scale.setScalar(1.1);
+    } else if (t < 2.0) { // se absorbe en espiral
+      const k = (t - 1.1) / 0.9;
+      root.position.set(T.to.x, hy - k * 0.2, T.to.z);
+      root.rotation.y += dt * (6 + k * 30);
+      body.scale.setScalar(Math.max(0.01, 1.1 * (1 - k)));
+      groundMap.material.uniforms.uFlash.value = 0.35 * Math.sin(k * Math.PI);
+    } else if (t < 2.4) { // el mapa se enrolla y desaparece
+      groundMap.scale.setScalar(Math.max(0.01, 1 - (t - 2.0) / 0.4));
+    } else if (!T.done) {
+      T.done = true;
+      groundMap.visible = false; groundMap.parent?.remove(groundMap);
+      body.scale.setScalar(1.1);
+      root.visible = false; // sigue "dentro del mapa" hasta aparecer en el destino (main.js lo vuelve a mostrar)
+      P.travel = null; P.state = 'idle';
+      T.onDone?.();
+    }
+    shadow.visible = t < 1.1;
+    shadow.position.set(root.position.x, (T.from.y) + 0.03, root.position.z);
+    return { sleep: false };
+  }
 
   // Rutinas de estación que el juego dispara de vez en cuando.
   P.seasonQuirk = () => {

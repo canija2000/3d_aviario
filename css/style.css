@@ -99,6 +99,33 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ground
   .dialog { bottom: 56px; }
 }
 
+/* mapa de viaje: pergamino que se despliega */
+.travel { position: fixed; inset: 0; z-index: 12; display: grid; place-items: center; background: rgba(5, 6, 11, 0.55); padding: 12px; }
+.travel .paper { width: min(1100px, 96vw); background:
+    radial-gradient(ellipse at 30% 20%, #f3e6c4 0%, #e6d3a4 60%, #d8c08a 100%);
+  border: 3px solid #6a4a24; border-radius: 6px; box-shadow: 0 0 0 3px #2a1a0a, 0 12px 40px rgba(0,0,0,.6);
+  padding: 10px 16px 12px; color: #3a2612; transform-origin: 50% 0; animation: unfurl .45s steps(6) both; }
+@keyframes unfurl { from { transform: scaleY(0.05); opacity: .4; } to { transform: scaleY(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .travel .paper { animation: none; } }
+.travel header { display: flex; align-items: center; }
+.travel h2 { margin: 0; flex: 1; font-family: var(--pix); font-size: 22px; letter-spacing: .08em; color: #5a3412; }
+.travel .btn.close { background: #6a4a24; border-color: #3a2612; color: #f3e6c4; }
+#chile { width: 100%; height: auto; display: block; margin: 6px 0; }
+#chile .reg { fill: #cdb98a; stroke: #6a5030; stroke-width: .5; }
+#chile .reg.on { fill: #d9a441; cursor: pointer; }
+#chile .reg.on:hover, #chile .reg.on:focus { fill: #f4d35e; outline: none; }
+#chile .reg.here { fill: #7ab85a; }
+#chile .sea { fill: #9ec3d6; }
+#chile text { font-family: var(--read); font-size: 5.2px; fill: #3a2612; pointer-events: none; }
+#chile text.on { font-weight: 700; fill: #5a2a08; }
+#chile text.off { fill: #8a7450; }
+#chile line { stroke: #8a7450; stroke-width: .3; }
+#chile .poroto { fill: #c42; stroke: #2a1a0a; stroke-width: .5; }
+#travel-zones { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-family: var(--read); font-size: 15px; }
+#travel-zones .btn { background: #f3e6c4; color: #3a2612; border-color: #6a4a24; font-size: 14px; }
+#travel-zones .btn:hover { background: #d9a441; }
+.map-hint { margin: 6px 0 0; font-family: var(--read); font-size: 13px; color: #6a5030; }
+
 /* etiquetas del mundo (HTML proyectado sobre el 3D) */
 .wlabel { position: fixed; transform: translate(-50%, -100%); pointer-events: none; z-index: 4; white-space: nowrap;
   font-family: var(--read); font-weight: 700; font-size: 15px; letter-spacing: 0.02em;

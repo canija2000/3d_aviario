@@ -40,7 +40,7 @@
   <div class="hud-buttons">
     <button class="btn" id="b-pause" title="Pausar el tiempo">⏸</button>
     <button class="btn" id="b-next" title="Mes siguiente">⏭</button>
-    <button class="btn" id="b-map" title="Mapa de la región">MAPA</button>
+    <button class="btn" id="b-map" title="Mapa de Chile (M)">MAPA</button>
     <button class="btn" id="b-book" title="Libreta de campo">LIBRETA <span id="book-n">0</span></button>
     <button class="btn" id="b-names" title="Mostrar u ocultar los nombres de las aves (N)">NOMBRES</button>
     <button class="btn" id="b-sound" title="Silenciar">♪</button>
@@ -52,6 +52,14 @@
 <div id="toast" class="win toast" hidden></div>
 <div id="dialog" class="win dialog" hidden><div class="dlg-row"><div id="dialog-portrait" hidden></div><div id="dialog-text"></div></div><div id="dialog-actions"></div></div>
 <div id="panel" class="win panel" hidden><button class="btn close" id="panel-close">✕</button><div id="panel-body"></div></div>
+<div id="travel" class="travel" hidden>
+  <div class="paper">
+    <header><h2>MAPA DE CHILE</h2><button class="btn close" id="travel-close" title="Guardar el mapa (Esc)">✕</button></header>
+    <svg id="chile" role="img" aria-label="Mapa de Chile con sus 16 regiones"></svg>
+    <div id="travel-zones"></div>
+    <p class="map-hint">Elige una región: Poroto dejará el mapa en el suelo y saltará dentro. · M abre el mapa</p>
+  </div>
+</div>
 <div id="fade" class="fade"><div id="fade-text"></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

@@ -247,7 +247,7 @@ async function enterHub() {
   $('hud').hidden = true;
   await fade(false);
   const open = G.index.regions.filter(r => r.terrainFile).map(r => `<b>${r.name}</b>`);
-  toast(`Elige una región. Por ahora se puede entrar a ${open.join(' y ')}.`, 5);
+  toast(`Camina hasta un portal o abre el <b>mapa</b> (M) para viajar. Se puede entrar a ${open.join(', ')}.`, 6);
 }
 
 function portalClicked(p) {
@@ -265,7 +265,7 @@ function portalClicked(p) {
 }
 
 // ------------------------------------------------------------------ REGIÓN Y ESCENAS
-async function enterRegion(code) {
+async function enterRegion(code, opts = {}) {
   await fade(true, 'Cargando la región…');
   G.reg = await loadRegion(G.index, code);
   try { G.props = await loadJSON(DATA_BASE + `props-${code}.json`); } catch { G.props = null; }
@@ -273,6 +273,8 @@ async function enterRegion(code) {
   G.director = new Director({ index: G.index, region: G.reg.region, regionId: G.reg.meta.id, regionCode: code, root: null, onSing });
   G.mode = 'scene';
   await loadSceneKey(sceneOrder()[0], null, false);
+  if (opts.drop) { poroto.drop = 14; poroto.dropMsg = `¡Llegamos a ${G.reg.meta.name}!`; }
+  poroto.root.visible = true;
   $('hud').hidden = false;
   await fade(false);
   openDialog(welcomeText(G.index, G.reg.meta, G.month), [{ label: '¡Vamos!' }]);
@@ -599,7 +601,8 @@ function steerCamera(dt) {
 }
 window.addEventListener('keydown', e => {
   if (G.mode === 'start' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); start(); return; }
-  if (e.key === 'Escape') { closeDialog(); $('panel').hidden = true; }
+  if (e.key === 'Escape') { closeDialog(); $('panel').hidden = true; if (!$('travel').hidden) closeTravelMap(); }
+  if ((e.key === 'm' || e.key === 'M') && $('travel').hidden) openTravelMap();
   if ((e.key === 'n' || e.key === 'N') && G.mode === 'scene') toggleNames();
   if (['q', 'e', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(e.key.toLowerCase())) {
     if (e.key.startsWith('Arrow')) e.preventDefault();
@@ -630,14 +633,7 @@ $('b-next').onclick = () => { setMonth(G.month + 1); blip(); };
 function toggleNames() { showNames = !showNames; $('b-names').classList.toggle('off', !showNames); }
 $('b-names').onclick = toggleNames;
 $('b-sound').onclick = () => { G.muted = !G.muted; setMuted(G.muted); $('b-sound').classList.toggle('off', G.muted); };
-$('b-map').onclick = () => {
-  const sc = G.reg.terrain.scenes;
-  openPanel(`<h2>MAPA · ${G.reg.meta.name}</h2><p class="dim">Cuatro rincones reales de la región, unidos por senderos.</p><div class="scenes">${
-    sceneOrder().map(k => `<button class="btn" data-k="${k}" ${k === G.sceneKey ? 'disabled' : ''}>${SCENE_LABEL[k]} — ${sc[k].name} · ${sc[k].hMin}–${sc[k].hMax} m</button>`).join('')
-  }</div><p class="dim" style="margin-top:10px"><button class="btn" id="to-hub">← Volver al mapa de Chile</button></p>`);
-  $('panel-body').querySelectorAll('[data-k]').forEach(b => { b.onclick = () => { $('panel').hidden = true; travel(b.dataset.k); }; });
-  $('to-hub').onclick = async () => { $('panel').hidden = true; await fade(true, 'Volviendo al mapa de Chile…'); G.reg = null; enterHub(); };
-};
+$('b-map').onclick = () => openTravelMap();
 $('b-book').onclick = () => {
   const cards = featuredList().map(sci => {
     const sp = G.index.bySci.get(sci);
@@ -660,6 +656,85 @@ $('b-credits').onclick = () => {
   <p><b>Morfología y hábitat:</b> AVONET (Tobias et al. 2022, CC BY 4.0) y EltonTraits 1.0 (Wilman et al. 2014, CC0). <b>Paletas:</b> derivadas de fotos de referencia de iNaturalist (CC0 / CC BY / CC BY-SA; autores en los datos), con zonas anotadas a mano o con un modelo de visión (Qwen3-VL) y revisadas por una persona. <b>Terreno:</b> AWS Terrain Tiles, ESA WorldCover 2021 (CC BY 4.0) y © OpenStreetMap (ODbL).</p>
   <p class="dim">Clic para caminar · clic en un ave para conocerla · rueda: zoom · Q/E o ←/→: girar la cámara · N: nombres de las aves.</p>`);
 };
+
+// ------------------------------------------------------------------ mapa de viaje
+// Poroto saca el mapa de la mochila; al elegir una región lo deja en el suelo, salta dentro y
+// aparece cayendo en la región elegida.
+function renderTravelMap() {
+  const M = G.chileMap;
+  const svg = $('chile');
+  if (!M) { svg.innerHTML = ''; return; }
+  const [x0, y0, w, h] = M.viewBox;
+  const top = y0 - 16, H = h + 32;
+  svg.setAttribute('viewBox', `${x0 - 4} ${top} ${w + 8} ${H}`);
+  const here = G.mode === 'scene' ? G.reg?.meta.code : null;
+  let out = `<text class="off" x="${x0 + w * 0.5}" y="${y0 + h - 2}" text-anchor="middle" font-style="italic">Océano Pacífico</text>`;
+  M.regions.forEach(r => {
+    const cls = `reg${r.active ? ' on' : ''}${r.code === here ? ' here' : ''}`;
+    out += `<path class="${cls}" d="${r.d}" data-code="${r.code}" ${r.active ? 'tabindex="0" role="button"' : ''}><title>${r.name}${r.active ? '' : ' · próximamente'}</title></path>`;
+  });
+  // Nombres alternados arriba (cordillera) y abajo (mar); en cada fila se separan para no montarse,
+  // con una línea guía hasta su región.
+  const rows = [[], []];
+  M.regions.forEach((r, i) => { if (r.label) rows[i % 2].push({ r, w: r.name.length * 2.75 + 2, x: r.label[0] }); });
+  for (const row of rows) {
+    row.sort((a, b) => a.x - b.x);
+    for (let i = 0; i < row.length; i++) {
+      row[i].x = Math.max(row[i].x, x0 + row[i].w / 2);
+      if (i) row[i].x = Math.max(row[i].x, row[i - 1].x + (row[i - 1].w + row[i].w) / 2);
+    }
+    for (let i = row.length - 1; i >= 0; i--) { // si se salió por la derecha, devolver hacia la izquierda
+      const lim = i === row.length - 1 ? x0 + w - row[i].w / 2 : row[i + 1].x - (row[i + 1].w + row[i].w) / 2;
+      row[i].x = Math.min(row[i].x, lim);
+    }
+  }
+  rows.forEach((row, up) => row.forEach(({ r, x }) => {
+    const [lx, ly] = r.label, ty = up === 0 ? top + 6 : top + H - 3;
+    out += `<line x1="${lx}" y1="${ly}" x2="${x}" y2="${up === 0 ? ty + 1.5 : ty - 5}"/>`;
+    out += `<text class="${r.active ? 'on' : 'off'}" x="${x}" y="${ty}" text-anchor="middle">${r.name}</text>`;
+  }));
+  const cur = M.regions.find(r => r.code === here);
+  if (cur?.label) out += `<circle class="poroto" cx="${cur.label[0]}" cy="${cur.label[1]}" r="2.6"><title>Aquí está Poroto</title></circle>`;
+  svg.innerHTML = out;
+  svg.querySelectorAll('.reg').forEach(p => {
+    const go = () => chooseRegion(p.dataset.code);
+    p.addEventListener('click', go);
+    p.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+  });
+  // zonas de la región actual (moverse dentro de la región sin viajar)
+  const z = $('travel-zones');
+  if (here && G.reg) {
+    const sc = G.reg.terrain.scenes;
+    z.innerHTML = `<b>${G.reg.meta.name}:</b> ` + sceneOrder().map(k => `<button class="btn" data-k="${k}" ${k === G.sceneKey ? 'disabled' : ''}>${SCENE_LABEL[k]}</button>`).join('');
+    z.querySelectorAll('[data-k]').forEach(b => { b.onclick = () => { closeTravelMap(); travel(b.dataset.k); }; });
+  } else z.innerHTML = '';
+}
+
+function openTravelMap() {
+  if ((G.mode !== 'scene' && G.mode !== 'hub') || poroto.travel || !$('travel').hidden) return;
+  closeDialog(); $('panel').hidden = true;
+  poroto.holdMap(true);
+  say('¿A dónde vamos?', 1.5);
+  blip(520, 0.06);
+  setTimeout(() => { if (!poroto.mapHeld) return; renderTravelMap(); $('travel').hidden = false; $('chile').querySelector('.reg.on')?.focus(); }, 450);
+}
+function closeTravelMap() { $('travel').hidden = true; poroto.holdMap(false); }
+$('travel-close').onclick = closeTravelMap;
+$('travel').addEventListener('click', e => { if (e.target.id === 'travel') closeTravelMap(); });
+
+function chooseRegion(code) {
+  const r = G.chileMap.regions.find(x => x.code === code);
+  if (!r?.active) { toast(`${r?.name || code}: próximamente`, 2); blip(220, 0.1); return; }
+  $('travel').hidden = true;
+  poroto.holdMap(false);
+  blip(660, 0.08);
+  const heightAt = G.mode === 'scene' ? G.sc.heightAt : G.hubWorld.heightAt;
+  poroto.startTravel(heightAt, async () => {
+    blip(990, 0.12);
+    if (G.mode === 'scene' && G.reg?.meta.code === code) { poroto.drop = 14; poroto.root.visible = true; return; }
+    await enterRegion(code, { drop: true });
+  });
+}
 
 // ------------------------------------------------------------------ inicio
 async function start() {
@@ -686,7 +761,7 @@ function frame(now) {
     if (poroto.drop > 0) {
       poroto.drop = Math.max(0, poroto.drop - dt * 18);
       poroto.root.position.y += poroto.drop;
-      if (poroto.drop === 0) { blip(160, 0.12); say('¡Hola! Soy Poroto.'); }
+      if (poroto.drop === 0) { blip(160, 0.12); say(poroto.dropMsg || '¡Hola! Soy Poroto.'); poroto.dropMsg = null; }
     }
     if (st.sleep && bubble.hidden) say('Zzz…', 2);
     if (G.mode === 'scene') {
@@ -734,7 +809,10 @@ function frame(now) {
 window.addEventListener('resize', () => fitRenderer(renderer, camera));
 fitRenderer(renderer, camera);
 renderer.setClearColor(0x05060b);
-loadWorld().then(idx => { G.index = idx; }).catch(err => {
+loadWorld().then(async idx => {
+  G.index = idx;
+  try { G.chileMap = await loadJSON(DATA_BASE + 'chile-map.json'); } catch { G.chileMap = null; }
+}).catch(err => {
   document.querySelector('#start .hint').textContent = 'No se pudieron cargar los datos: ' + err.message;
 });
 requestAnimationFrame(frame);
