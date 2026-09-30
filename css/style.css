@@ -105,3 +105,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ground
   text-shadow: 0 0 3px #000, 0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
 .wlabel.left { transform: translate(0, -50%); }
 .wlabel.big { font-size: 18px; }
+/* nombre sobre cada ave, en el color de su clase regional */
+.blabel { position: fixed; transform: translate(-50%, -100%); pointer-events: none; z-index: 3; white-space: nowrap;
+  font-family: var(--read); font-weight: 700; font-size: 13px; padding: 1px 6px; border-radius: 3px;
+  background: rgba(8, 10, 16, 0.72); border-bottom: 2px solid currentColor; text-shadow: 0 1px 0 #000; }
+.blabel.sing::before { content: "♪ "; }
