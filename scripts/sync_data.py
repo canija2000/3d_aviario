@@ -3,8 +3,9 @@
 Uso:
     python3 scripts/sync_data.py [--src ../infovis-2026-2] [--regions CL-RM ...]
 
-Copia web/data/game/index.json, los region-<CODE>.json y terrain-<CODE>.json pedidos, y los
-clips de audio (clip completo y fragmento -g) de las especies que aparecen en esas regiones.
+Copia web/data/game/index.json, y para cada región pedida su region-<CODE>.json, terrain-<CODE>.json y
+props-<CODE>.json (desde enrich/props_*.json), más los clips de audio (clip completo y fragmento -g)
+de las especies que aparecen en esas regiones.
 Destino: data/game/ y audio/ (rutas iguales a las de la web del repo principal, para que
 species.clip.src funcione tal cual). Cuando el repo principal esté publicado en GitHub Pages
 se puede cargar desde ahí en vez de copiar (ver js/data.js).
@@ -37,6 +38,10 @@ def main() -> None:
         for name in (f"region-{code}.json", f"terrain-{code}.json"):
             if (game / name).exists():
                 shutil.copy2(game / name, out / name)
+        # vegetación por escena: enrich/props_<rm>.json → props-<CODE>.json
+        props = game / "enrich" / f"props_{code.split('-')[1].lower()}.json"
+        if props.exists():
+            shutil.copy2(props, out / f"props-{code}.json")
         rids |= {str(r["id"]) for r in index["regions"] if r["code"] == code}
 
     audio = ROOT / "audio"
