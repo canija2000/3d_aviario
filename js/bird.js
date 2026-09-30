@@ -11,18 +11,41 @@ const GRAY = { back: [120, 110, 100], back_dark: [80, 72, 64], belly: [180, 172,
   head: [110, 100, 92], throat: [190, 184, 172], wing: [100, 90, 80], tail: [90, 80, 72],
   beak: [40, 32, 28], legs: [72, 64, 56], eye: [16, 16, 16] };
 
-// Postura por plan: inclinación del cuerpo, ángulo de cola (negativo = alzada), tamaño de cabeza,
-// multiplicadores de patas y cuerpo.
-const PLANS = {
+// Planes corporales: inclinación del cuerpo, ángulo de cola (negativo = alzada), tamaño de cabeza,
+// multiplicadores de patas y cuerpo, cuello (neck = desplazamiento, neckLen = cuello visible),
+// largo de ala y rasgos (cresta, bolsa del pelícano, pico plano, penacho). swim: nada en el agua;
+// soar: planea en círculos.
+export const PLANS = {
   paseriforme: { tilt: 0.42, tail: 0.35, head: 0.56, legs: 1.0, body: [1.1, 0.85, 0.8], neck: 0 },
   cola_alta: { tilt: 0.18, tail: -1.1, head: 0.56, legs: 1.0, body: [1.15, 0.85, 0.8], neck: 0 },
   paloma: { tilt: 0.12, tail: 0.12, head: 0.42, legs: 0.7, body: [1.25, 0.9, 0.85], neck: 0.1 },
-  playero: { tilt: 0.06, tail: 0.25, head: 0.5, legs: 2.1, body: [1.2, 0.8, 0.75], neck: 0.15, crest: true },
+  playero: { tilt: 0.06, tail: 0.25, head: 0.5, legs: 2.1, body: [1.2, 0.8, 0.75], neck: 0.15 },
   picaflor: { tilt: 0.55, tail: 0.5, head: 0.52, legs: 0.35, body: [1.0, 0.62, 0.6], neck: 0 },
+  gaviota: { tilt: 0.15, tail: 0.2, head: 0.5, legs: 0.85, body: [1.3, 0.8, 0.75], neck: 0.05, wing: 1.5, swim: true, soar: true },
+  pelicano: { tilt: 0.2, tail: 0.2, head: 0.45, legs: 0.6, body: [1.5, 0.95, 0.9], neck: 0.1, neckLen: 0.55, wing: 1.6, pouch: true, swim: true, soar: true },
+  cormoran: { tilt: 0.65, tail: 0.3, head: 0.42, legs: 0.55, body: [1.3, 0.72, 0.7], neck: 0.05, neckLen: 0.5, wing: 1.2, swim: true },
+  garza: { tilt: 0.5, tail: 0.2, head: 0.38, legs: 2.4, body: [1.1, 0.68, 0.62], neck: 0.1, neckLen: 1.05, wing: 1.3 },
+  pato: { tilt: 0.04, tail: 0.15, head: 0.5, legs: 0.45, body: [1.35, 0.78, 0.9], neck: 0.15, neckLen: 0.2, wing: 1.0, bill: true, swim: true },
+  rapaz: { tilt: 0.45, tail: 0.25, head: 0.4, legs: 0.9, body: [1.3, 0.9, 0.85], neck: 0.05, neckLen: 0.2, wing: 1.8, soar: true },
+  codorniz: { tilt: 0.1, tail: 0.1, head: 0.55, legs: 0.7, body: [1.2, 0.95, 0.9], neck: 0.05, topknot: true },
 };
+const FAMILY_PLAN = {
+  Rhinocryptidae: 'cola_alta', Troglodytidae: 'cola_alta',
+  Columbidae: 'paloma', Trochilidae: 'picaflor',
+  Charadriidae: 'playero', Haematopodidae: 'playero', Recurvirostridae: 'playero', Scolopacidae: 'playero', Thinocoridae: 'playero',
+  Laridae: 'gaviota', Stercorariidae: 'gaviota', Procellariidae: 'gaviota', Diomedeidae: 'gaviota', Sulidae: 'gaviota',
+  Pelecanidae: 'pelicano', Phalacrocoracidae: 'cormoran', Anhingidae: 'cormoran', Podicipedidae: 'pato',
+  Ardeidae: 'garza', Threskiornithidae: 'garza', Ciconiidae: 'garza', Phoenicopteridae: 'garza',
+  Anatidae: 'pato', Rallidae: 'pato',
+  Cathartidae: 'rapaz', Accipitridae: 'rapaz', Falconidae: 'rapaz', Strigidae: 'rapaz', Tytonidae: 'rapaz',
+  Odontophoridae: 'codorniz', Phasianidae: 'codorniz', Tinamidae: 'codorniz',
+};
+export const PLAN_OVERRIDE = { 'Vanellus chilensis': 'playero' };
 
-export function planFor(sp, mvpInfo) {
-  if (mvpInfo?.plan) return mvpInfo.plan;
+export function planFor(sp) {
+  if (PLAN_OVERRIDE[sp.sciName]) return PLAN_OVERRIDE[sp.sciName];
+  const fam = sp.morphology?.family;
+  if (fam && FAMILY_PLAN[fam]) return FAMILY_PLAN[fam];
   const ls = sp.morphology?.lifestyle;
   if (ls === 'Aerial' && (sp.morphology?.mass ?? 99) < 12) return 'picaflor';
   if ((sp.morphology?.prop?.[2] ?? 0) > 0.55) return 'playero';
@@ -113,7 +136,7 @@ export function buildBird(sp, plan = 'paseriforme') {
   const torso = new THREE.Group(); torso.position.set(0.05, 0.72, 0); torso.rotation.z = pl.tilt; bodyPivot.add(torso);
   add(torso, sideUV(new THREE.SphereGeometry(1, 7, 5)).scale(...pl.body), mat(T.body));
 
-  const wingLen = 0.72 * (1 + hwi * 0.9);
+  const wingLen = 0.72 * (1 + hwi * 0.9) * (pl.wing ?? 1);
   const wingGeo = sideUV(new THREE.SphereGeometry(1, 5, 3)).scale(wingLen, 0.4, 0.1).translate(-wingLen * 0.35, 0, 0);
   const mWing = mat(T.wing);
   const wings = [];
@@ -126,17 +149,30 @@ export function buildBird(sp, plan = 'paseriforme') {
   add(tail, new THREE.BoxGeometry(1.05 * fTail, 0.07, plan === 'picaflor' ? 0.3 : 0.42).translate(-0.5 * fTail, 0, 0), mat(T.tail));
 
   const hs = pl.head;
-  const headBase = new THREE.Vector3(0.98 - pl.tilt * 0.25 + pl.neck, 1.42 + pl.tilt * 0.45 + pl.neck * 0.5, 0);
+  const nl = pl.neckLen ?? 0;
+  const headBase = new THREE.Vector3(0.98 - pl.tilt * 0.25 + pl.neck + nl * 0.35, 1.42 + pl.tilt * 0.45 + pl.neck * 0.5 + nl * 0.9, 0);
   const head = new THREE.Group(); head.position.copy(headBase); bodyPivot.add(head);
+  if (nl > 0) { // cuello visible entre el pecho y la cabeza
+    const from = new THREE.Vector3(0.75 - pl.tilt * 0.2, 1.1 + pl.tilt * 0.35, 0), dir = headBase.clone().sub(from);
+    const neck = add(bodyPivot, new THREE.CylinderGeometry(hs * 0.45, hs * 0.6, dir.length(), 5), mat(T.head));
+    neck.position.copy(from).addScaledVector(dir, 0.5);
+    neck.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  }
   add(head, sideUV(new THREE.SphereGeometry(1, 6, 4)).scale(hs, hs * 0.93, hs * 0.9), mat(T.head));
   const mBeak = mat(plain, { tint: T.beak });
   const bl = 0.4 * fBeak * (plan === 'picaflor' ? 1.6 : 1);
   const br = 0.12 * clamp(fDepth * (fBeak > 1.4 ? 0.7 : 1), 0.3, 1.8);
-  const upper = add(head, new THREE.ConeGeometry(br, bl, 4).rotateZ(-Math.PI / 2).translate(bl / 2, 0, 0).scale(1, 0.6, 1), mBeak);
+  const flat = pl.bill ? [0.3, 1.9] : [0.6, 1];
+  const upper = add(head, new THREE.ConeGeometry(br, bl, 4).rotateZ(-Math.PI / 2).translate(bl / 2, 0, 0).scale(1, flat[0], flat[1]), mBeak);
   upper.position.set(hs * 0.86, 0, 0); upper.rotation.z = -0.12;
-  const lower = add(head, new THREE.ConeGeometry(br * 0.75, bl * 0.82, 4).rotateZ(-Math.PI / 2).translate(bl * 0.41, 0, 0).scale(1, 0.4, 1), mBeak);
+  const pouch = pl.pouch ? [2.4, 0.9] : [0.75, 0.4];
+  const lower = add(head, new THREE.ConeGeometry(br * pouch[0], bl * 0.82, 4).rotateZ(-Math.PI / 2).translate(bl * 0.41, 0, 0).scale(1, pouch[1], flat[1]), pl.pouch ? mat(plain, { tint: 0xc89868 }) : mBeak);
   lower.position.set(hs * 0.84, -0.05, 0); lower.rotation.z = -0.18;
-  if (pl.crest) {
+  if (pl.topknot) { // penacho de la codorniz, curvado hacia adelante
+    const k = add(head, new THREE.BoxGeometry(0.08, 0.45, 0.05).translate(0, 0.22, 0), mat(plain, { tint: 0x201a18 }));
+    k.position.set(hs * 0.2, hs * 0.8, 0); k.rotation.z = -0.5;
+  }
+  if (pl.crest || sp.sciName === 'Vanellus chilensis') {
     const c = T.crest;
     const crest = add(head, new THREE.BoxGeometry(0.5, 0.05, 0.04).translate(-0.25, 0, 0), mat(plain, { tint: (c[0] << 16) | (c[1] << 8) | c[2] }));
     crest.position.set(-hs * 0.6, hs * 0.5, 0); crest.rotation.z = 0.35;

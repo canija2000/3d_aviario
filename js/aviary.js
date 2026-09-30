@@ -3,8 +3,8 @@
 // El director elige qué especies hay cada mes (datos del año típico) y quién canta (máx. 2 a la vez,
 // con probabilidad proporcional a su frecuencia).
 /* global THREE */
-import { buildBird, planFor } from './bird.js';
-import { MVP, presentIn, freqOf, CLASS_COLORS } from './data.js';
+import { buildBird, planFor, PLANS } from './bird.js';
+import { presentIn, freqOf, CLASS_COLORS } from './data.js';
 import { loadClip, playAt, playSynth, audioReady } from './audio.js';
 
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -14,7 +14,8 @@ export class BirdAgent {
   constructor(sp, scene, regionId) {
     this.sp = sp;
     this.scene = scene;
-    this.plan = planFor(sp, MVP[sp.sciName]);
+    this.plan = planFor(sp);
+    this.traits = PLANS[this.plan] || {};
     this.m = buildBird(sp, this.plan);
     this.s = Math.max(0.25, Math.min(1.0, 0.5 * (sp.morphology?.scale ?? 1)));
     this.m.group.scale.setScalar(this.s);
@@ -63,6 +64,13 @@ export class BirdAgent {
 
   choosePlace() {
     const sc = this.scene;
+    this.swimming = false;
+    if (this.traits.swim && sc.waterSpots.length && Math.random() < 0.5) { // nadar
+      const w = sc.waterSpots[Math.random() * sc.waterSpots.length | 0].clone();
+      w.x += rnd(-0.5, 0.5); w.z += rnd(-0.5, 0.5);
+      this.perch = w; this.swimming = true;
+      return w.clone();
+    }
     const pool = this.plan === 'picaflor' ? sc.flowers : sc.perches;
     if (pool.length && Math.random() > this.groundy) {
       const near = pool.filter(p => Math.hypot(p.x, p.z) < sc.half * 0.6);
@@ -84,6 +92,15 @@ export class BirdAgent {
 
   setState(s, dur = 0) { this.state = s; this.t = 0; this.dur = dur; }
 
+  // Planear en círculos sobre la escena (jotes, gaviotas, pelícanos) y luego bajar.
+  startSoar() {
+    this.perch = null; this.swimming = false;
+    this.soar = { cx: rnd(-8, 8), cz: rnd(-8, 8), r: rnd(6, 11), y: this.groundY(0, 0) + rnd(9, 14), a: rnd(0, 6.28), dir: Math.random() < 0.5 ? 1 : -1 };
+    const s = this.soar;
+    this.fly(new THREE.Vector3(s.cx + Math.cos(s.a) * s.r, s.y, s.cz + Math.sin(s.a) * s.r), rnd(2, 3));
+    this.afterFly = 'soar';
+  }
+
   startHop() {
     this.from.copy(this.pos);
     const d = this.target.clone().sub(this.pos); d.y = 0;
@@ -99,6 +116,12 @@ export class BirdAgent {
 
   chooseNext() {
     const r = Math.random();
+    if (this.traits.soar && r < 0.12) { this.startSoar(); return; }
+    if (this.swimming) { // deriva lenta sobre el agua
+      if (r < 0.15) this.fly(this.choosePlace(), rnd(1.5, 2.5));
+      else { this.perch.x += rnd(-0.4, 0.4); this.perch.z += rnd(-0.4, 0.4); this.heading += rnd(-0.8, 0.8); this.setState('idle', rnd(1.5, 3.5)); }
+      return;
+    }
     if (this.perch && this.plan !== 'picaflor') {
       if (r < 0.2) this.fly(this.choosePlace(), rnd(1.2, 2.2));
       else this.setState('idle', rnd(1, 3));
@@ -157,13 +180,22 @@ export class BirdAgent {
       if (k >= 1) {
         this.pos.copy(this.to);
         if (this.leaving) { this.gone = true; return; }
-        if (this.plan === 'picaflor') this.setState('hover', rnd(1.2, 3));
+        if (this.afterFly === 'soar') { this.afterFly = null; this.setState('soar', rnd(8, 16)); }
+        else if (this.plan === 'picaflor') this.setState('hover', rnd(1.2, 3));
         else this.setState('idle', rnd(0.8, 2));
       }
     } else if (this.state === 'hover') {
       if (this.t > this.dur) this.chooseNext();
+    } else if (this.state === 'soar') {
+      const s = this.soar;
+      s.a += s.dir * dt * 0.35;
+      this.pos.set(s.cx + Math.cos(s.a) * s.r, s.y + Math.sin(this.t * 0.7) * 0.4, s.cz + Math.sin(s.a) * s.r);
+      this.heading = Math.atan2(-Math.cos(s.a) * s.dir, -Math.sin(s.a) * s.dir);
+      y = this.pos.y;
+      if (this.t > this.dur) this.fly(this.choosePlace(), rnd(3, 4.5));
     }
-    if (this.state !== 'fly' && this.state !== 'hop') this.pos.y = y;
+    if (this.swimming && this.state === 'idle') y = this.perch.y + Math.sin(performance.now() / 700 + this.pos.x) * 0.04;
+    if (this.state !== 'fly' && this.state !== 'hop' && this.state !== 'soar') this.pos.y = y;
     this.pose(this.state === 'fly' || this.state === 'hop' ? y : this.pos.y);
   }
 
@@ -171,11 +203,14 @@ export class BirdAgent {
     const m = this.m;
     m.group.position.set(this.pos.x, y, this.pos.z);
     m.group.rotation.y = this.heading;
-    const flying = this.state === 'fly' || this.state === 'hover' || this.plan === 'picaflor' && this.state !== 'idle';
+    const soaring = this.state === 'soar';
+    const flying = this.state === 'fly' || this.state === 'hover' || soaring || this.plan === 'picaflor' && this.state !== 'idle';
     const hopK = this.state === 'hop' ? Math.sin(Math.PI * this.k) : 0;
     for (const l of m.legs) { l.rotation.z = flying ? 0.9 : -0.7 * hopK; }
-    const flap = flying ? Math.sin(performance.now() / (this.plan === 'picaflor' ? 12 : 60)) : 0;
-    for (const w of m.wings) { w.rotation.x = w.userData.side * (flying ? 0.3 + flap * 1.1 : 0); }
+    const flap = soaring ? 0.05 * Math.sin(performance.now() / 400) : flying ? Math.sin(performance.now() / (this.plan === 'picaflor' ? 12 : 60)) : 0;
+    for (const w of m.wings) { w.rotation.x = w.userData.side * (soaring ? 1.35 + flap : flying ? 0.3 + flap * 1.1 : 0); }
+    for (const l of m.legs) l.visible = !(this.swimming && !flying);
+    m.group.rotation.x = soaring ? 0.25 * (this.soar?.dir || 1) : 0;
     let bodyTilt = 0, headTilt = this.pitch, open = 0, puff = 1;
     if (this.state === 'peck') {
       const tri = this.k < 0.5 ? this.k * 2 : (1 - this.k) * 2;
@@ -183,7 +218,8 @@ export class BirdAgent {
       bodyTilt = -0.4 * tri; headTilt = -0.9 * jab * tri - 0.2;
     } else if (this.state === 'sing') {
       bodyTilt = 0.12; headTilt = 0.5; open = 0.4 * this.noteAmp; puff = 1 + 0.08 * this.noteAmp;
-    } else if (this.state === 'fly') bodyTilt = -0.35;
+    } else if (this.state === 'fly' || soaring) bodyTilt = -0.35;
+    if (this.swimming && !flying) bodyTilt = -0.12;
     m.bodyPivot.rotation.z = bodyTilt + 0.1 * hopK;
     m.head.rotation.y = this.yaw;
     m.head.rotation.z = headTilt;
@@ -196,18 +232,18 @@ export class BirdAgent {
 
 // ---------------------------------------------------------------------------------------
 export class Director {
-  constructor({ index, region, regionId, root, onSing }) {
-    this.index = index; this.region = region; this.regionId = regionId; this.root = root;
+  constructor({ index, region, regionId, regionCode, root, onSing }) {
+    this.index = index; this.region = region; this.regionId = regionId; this.regionCode = regionCode; this.root = root;
     this.agents = []; this.sceneKey = null; this.scene = null; this.onSing = onSing;
     this.nextSong = 2; this.acc = 0;
   }
 
-  // Especies del MVP que viven en esta escena y están presentes este mes.
+  // Especies destacadas de la región que viven en esta escena y están presentes este mes.
   castFor(sceneKey, month) {
     const out = [];
-    for (const sci of Object.keys(MVP)) {
-      const sp = this.index.bySci.get(sci);
-      if (!sp || sp.habitat?.rm !== sceneKey || !presentIn(sp, month)) continue;
+    for (const [sid, feat] of Object.entries(this.region.featured || {})) {
+      const sp = this.index.byId.get(+sid);
+      if (!sp || feat.scene !== sceneKey || !presentIn(sp, month)) continue;
       const cls = sp.regionalClass[String(this.regionId)];
       if (!cls) continue;
       const f = freqOf(this.region, sp.id, month);

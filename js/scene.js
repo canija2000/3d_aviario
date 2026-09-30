@@ -53,6 +53,10 @@ function propKinds(R) {
   const reedTex = makeTex(16, 32, (x, y) => (x % 4 === 1 && y > 2) ? vary(y < 6 ? [100, 70, 40] : [80, 120, 50], 10) : [0, 0, 0, 0]);
   const windowTex = makeTex(16, 16, (x, y) => (x % 4 > 0 && y % 4 > 1) ? vary([180, 190, 170], 12) : vary([150, 140, 128], 6));
   const signTex = makeTex(8, 8, () => vary([120, 84, 48], 8));
+  const HOUSE = [[196, 72, 60], [232, 184, 64], [72, 132, 176], [120, 172, 96], [216, 132, 160], [236, 228, 208]];
+  const houseTex = HOUSE.map(col => makeTex(16, 16, (x, y) => (x % 5 > 1 && y % 6 > 2) ? vary([60, 70, 80], 8) : vary(col, 8)));
+  const coastRock = makeTex(16, 16, () => vary(R() < 0.3 ? [52, 50, 54] : [84, 80, 78], 10));
+  const docaTex = makeTex(16, 16, (x, y) => R() < 0.08 ? [220, 110, 170] : vary([96, 128, 60], 12));
   const m = (t, o = {}) => mat(t, { ...o, cutaway: true });
   const crown = (c) => m(leaf(c), { snowable: true });
   const trunk = (h, r = 0.18) => [new THREE.CylinderGeometry(r * 0.8, r, h, 5).translate(0, h / 2, 0), m(bark)];
@@ -90,6 +94,15 @@ function propKinds(R) {
       [new THREE.CylinderGeometry(0.05, 0.05, 2.4, 4).translate(0.9, 1.2, 0), m(plainTex, { tint: 0x303030 })],
       [new THREE.BoxGeometry(0.25, 0.2, 0.25).translate(0.9, 2.45, 0), m(plainTex, { tint: 0xf0e0a0 })]], perch: 2.5 },
     edificio: { parts: [[new THREE.BoxGeometry(1.8, 1, 1.8).translate(0, 0.5, 0), m(windowTex, { rx: 1, ry: 3 })]], perch: 0, building: true },
+    // Valparaíso
+    casa_color: { variants: houseTex.map(t => [[new THREE.BoxGeometry(1.6, 1, 1.6).translate(0, 0.5, 0), m(t, { rx: 1, ry: 2 })],
+      [new THREE.ConeGeometry(1.25, 0.5, 4).rotateY(Math.PI / 4).translate(0, 1.25, 0), m(plainTex, { tint: 0x8a4a3a })]]), perch: 1.5, building: true },
+    roca_costa: { parts: [[new THREE.IcosahedronGeometry(1.0, 0).scale(1.3, 0.8, 1).translate(0, 0.2, 0), m(coastRock)]], perch: 0.9 },
+    doca: { parts: [[new THREE.SphereGeometry(0.8, 6, 3, 0, Math.PI * 2, 0, Math.PI / 2).scale(1.2, 0.25, 1), m(docaTex)]] },
+    chagual: { parts: [[new THREE.ConeGeometry(0.6, 0.7, 7).translate(0, 0.35, 0), m(leaf([130, 150, 110]))],
+      [new THREE.CylinderGeometry(0.05, 0.07, 2.2, 4).translate(0, 1.6, 0), m(plainTex, { tint: 0x6a7a40 })],
+      [new THREE.IcosahedronGeometry(0.25, 0).scale(1, 2.2, 1).translate(0, 2.6, 0), m(plainTex, { tint: 0x3a8a8a })]], perch: 2.9, flower: true },
+    eucalipto: { parts: [trunk(4.5, 0.2), blob(1.3, 5, 1.5, [96, 128, 104])], perch: 6.2 },
   };
 }
 
@@ -100,7 +113,7 @@ const DENSITY = { arbol: 0.12, arbusto: 0.2, cactus: 0.05, roca: 0.05, junco: 0.
 // - Claro central: dentro de CLEAR_R la densidad cae a CLEAR_MIN y sube suave hasta CLEAR_R2.
 // - Senderos: franja de PATH_W unidades sin props desde el centro a cada salida.
 // - MAX_PER_KIND: tope de instancias por tipo de prop.
-export const SCENE_DENSITY = { ciudad: 0.55, matorral: 0.45, rio: 0.5, cordillera: 1 };
+export const SCENE_DENSITY = { ciudad: 0.55, matorral: 0.45, rio: 0.5, cordillera: 1, costa: 0.7, humedal: 0.6 };
 const CLEAR_R = 7, CLEAR_R2 = 18, CLEAR_MIN = 0.1, PATH_W = 2.2, MAX_PER_KIND = 70, BUILDING_CLEAR = 15;
 
 const segDist = (px, pz, ax, az, bx, bz) => {
@@ -123,7 +136,16 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20) {
   const R = mulberry32(key.length * 7919 + 17);
   const vary = makeVary(R);
 
-  const paths = exitAngles.map(a => [0, 0, Math.cos(a) * exitR, Math.sin(a) * exitR]);
+  // Letreros sobre tierra firme: si en esa dirección hay agua (p. ej. la bahía), se acercan al centro.
+  const coverXZ = (x, z) => cover[Math.max(0, Math.min(n - 1, ((z + WORLD / 2) / (WORLD / n)) | 0)) * n + Math.max(0, Math.min(n - 1, ((x + WORLD / 2) / (WORLD / n)) | 0))];
+  const exitPts = exitAngles.map(a => {
+    for (let r = exitR; r > 5; r -= 0.5) {
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (coverXZ(x, z) !== 7 && coverXZ(x * 0.97, z * 0.97) !== 7) return [x, z];
+    }
+    return [Math.cos(a) * 5, Math.sin(a) * 5];
+  });
+  const paths = exitPts.map(([x, z]) => [0, 0, x, z]);
   const onPath = (x, z, w = PATH_W) => paths.some(p => segDist(x, z, ...p) < w || Math.hypot(x - p[2], z - p[3]) < w + 3);
   // ---- terreno ----
   const K = 4;
@@ -168,15 +190,16 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20) {
   const perches = [], flowers = [], crowns = [], obstacles = [];
   const EXIT_CLEAR = 3.5;
   const catalog = (props?.[key] || []).filter(p => kinds[p.id]);
-  if (key === 'ciudad') catalog.push({ id: 'edificio', tipo: 'edificio', cover: [4] });
+  if (key === 'ciudad' && !catalog.some(p => p.tipo === 'edificio')) catalog.push({ id: 'edificio', tipo: 'edificio', cover: [4] });
   const instances = new Map(); // id → [matrix]
   const place = (id, x, z, s, rot) => {
     const y = heightAt(x, z);
     const mtx = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z),
       new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rot), new THREE.Vector3(s.x ?? s, s.y ?? s, s.z ?? s));
-    if (!instances.has(id)) instances.set(id, []);
-    instances.get(id).push(mtx);
     const k = kinds[id];
+    const iid = k.variants ? `${id}#${(R() * k.variants.length) | 0}` : id;
+    if (!instances.has(iid)) instances.set(iid, []);
+    instances.get(iid).push(mtx);
     if (k.perch) perches.push(new THREE.Vector3(x, y + k.perch * (s.y ?? s), z));
     if (k.flower) flowers.push(new THREE.Vector3(x, y + 0.5, z));
     if (k.building) obstacles.push({ x, z, r: 1.3 * (s.x ?? s) });
@@ -203,8 +226,10 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20) {
       place(p.id, x, z, s, R() * Math.PI * 2);
     }
   }
-  for (const [id, list] of instances) {
-    for (const part of kinds[id].parts) {
+  for (const [iid, list] of instances) {
+    const [id, vi] = iid.split('#');
+    const parts = vi !== undefined ? kinds[id].variants[+vi] : kinds[id].parts;
+    for (const part of parts) {
       const [g, m, tag] = part;
       const im = new THREE.InstancedMesh(g, m, list.length);
       list.forEach((mtx, j) => im.setMatrixAt(j, mtx));
@@ -230,7 +255,32 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20) {
     return snowBy[key]?.[season] ?? 0;
   }
 
-  return { root, heightAt, coverAt, perches, flowers, obstacles, exits, setSeason, half, cell, n, groundMat, ground };
+  // ---- agua: mar o lago con oleaje suave (celdas de agua a nivel del mar) ----
+  const seaY = data.hMin <= 0 ? (0 - data.hMin) * hScale + 0.05 : null;
+  let water = null;
+  if (seaY !== null) {
+    const wtex = makeTex(32, 32, (x, y) => ((x + y * 3) % 11 === 0 || (x * 5 + y) % 17 === 0) ? vary([150, 190, 220], 8) : vary([40, 86, 140], 8));
+    const wmat = mat(wtex, { rx: 10, ry: 10 });
+    water = new THREE.Mesh(new THREE.PlaneGeometry(WORLD * 1.6, WORLD * 1.6, 24, 24).rotateX(-Math.PI / 2), wmat);
+    water.position.y = seaY;
+    root.add(water);
+  }
+  const waterSpots = [];
+  for (let i = 0; i < n * n; i++) if (cover[i] === 7) {
+    const [x, z] = cellCenter(i);
+    const y = heightAt(x, z);
+    if (Math.hypot(x, z) < half * 0.65) waterSpots.push(new THREE.Vector3(x, seaY !== null ? Math.max(seaY, y) : y + 0.05, z));
+  }
+  // oleaje: el plano sube y baja, y sus vértices ondulan (el temblor PS1 hace el resto)
+  const wpos = water?.geometry.attributes.position;
+  function animate(t) {
+    if (!water) return;
+    water.position.y = seaY + Math.sin(t * 0.8) * 0.06;
+    for (let i = 0; i < wpos.count; i++) wpos.setY(i, Math.sin(t * 1.3 + wpos.getX(i) * 0.35) * 0.08 + Math.cos(t * 0.9 + wpos.getZ(i) * 0.3) * 0.06);
+    wpos.needsUpdate = true;
+  }
+
+  return { root, heightAt, coverAt, perches, flowers, obstacles, exits, exitPts, setSeason, half, cell, n, groundMat, ground, waterSpots, seaY, animate };
 }
 
 // Letrero de sendero con texto pixelado.

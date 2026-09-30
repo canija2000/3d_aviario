@@ -2,7 +2,7 @@
 // región (mini-escenas unidas por senderos) con aves reales mes a mes.
 /* global THREE */
 import { shared, mat, makeTex, makeVary, mulberry32, createRenderer, fitRenderer, texPlain } from './ps1.js';
-import { loadWorld, loadRegion, loadJSON, DATA_BASE, MVP, CLASS_COLORS, CLASS_LABEL, birdDialog, welcomeText } from './data.js';
+import { loadWorld, loadRegion, loadJSON, DATA_BASE, CLASS_LABEL, birdDialog, welcomeText, featuredIn } from './data.js';
 import { buildScene, signpost, WORLD } from './scene.js';
 import { buildPoroto } from './poroto.js';
 import { Director } from './aviary.js';
@@ -22,8 +22,12 @@ const LIGHT = {
   invierno: { sun: 0xc8d0e0, amb: 0x5c6270, fog: 0x8e98a8 },
   primavera: { sun: 0xf8f0d0, amb: 0x74806a, fog: 0xacc4b4 },
 };
-const SCENE_ORDER = ['ciudad', 'matorral', 'rio', 'cordillera'];
-const SCENE_LABEL = { ciudad: 'Ciudad', matorral: 'Matorral', rio: 'Río', cordillera: 'Cordillera' };
+// Etiquetas de los biomas (las escenas de cada región salen de terrain-<CODE>.json).
+const SCENE_LABEL = { ciudad: 'Ciudad', matorral: 'Matorral', rio: 'Río', cordillera: 'Cordillera', costa: 'Costa',
+  humedal: 'Humedal', desierto: 'Desierto', valle: 'Valle', altiplano: 'Altiplano', bosque: 'Bosque', lago: 'Lago',
+  pradera: 'Pradera', fiordo: 'Fiordo', estepa: 'Estepa' };
+const sceneOrder = () => Object.keys(G.reg.terrain.scenes);
+const featuredList = () => Object.keys(G.feat || {});
 
 const G = {
   mode: 'start', index: null, reg: null, props: null, sceneKey: null, sc: null, world: null, director: null,
@@ -213,7 +217,8 @@ async function enterHub() {
   G.cam.target.copy(poroto.pos);
   $('hud').hidden = true;
   await fade(false);
-  toast('Elige una región. Por ahora se puede entrar a la <b>Metropolitana</b>.', 5);
+  const open = G.index.regions.filter(r => r.terrainFile).map(r => `<b>${r.name}</b>`);
+  toast(`Elige una región. Por ahora se puede entrar a ${open.join(' y ')}.`, 5);
 }
 
 function portalClicked(p) {
@@ -235,10 +240,10 @@ async function enterRegion(code) {
   await fade(true, 'Cargando la región…');
   G.reg = await loadRegion(G.index, code);
   try { G.props = await loadJSON(DATA_BASE + `props-${code}.json`); } catch { G.props = null; }
-  G.regionRoot = new THREE.Scene();
-  G.director = new Director({ index: G.index, region: G.reg.region, regionId: G.reg.meta.id, root: null, onSing });
+  G.feat = featuredIn(G.index, G.reg.region);
+  G.director = new Director({ index: G.index, region: G.reg.region, regionId: G.reg.meta.id, regionCode: code, root: null, onSing });
   G.mode = 'scene';
-  await loadSceneKey('ciudad', null, false);
+  await loadSceneKey(sceneOrder()[0], null, false);
   $('hud').hidden = false;
   await fade(false);
   openDialog(welcomeText(G.index, G.reg.meta, G.month), [{ label: '¡Vamos!' }]);
@@ -247,7 +252,7 @@ async function enterRegion(code) {
 async function loadSceneKey(key, fromKey, withFade = true) {
   const data = G.reg.terrain.scenes[key];
   // senderos hacia los otros cuartos, en la dirección geográfica real
-  const dirs = SCENE_ORDER.filter(k => k !== key).map(k => {
+  const dirs = sceneOrder().filter(k => k !== key).map(k => {
     const other = G.reg.terrain.scenes[k];
     const dx = (other.center[0] - data.center[0]) * Math.cos(data.center[1] * Math.PI / 180), dz = -(other.center[1] - data.center[1]);
     return { k, a: Math.atan2(dz, dx) };
@@ -262,9 +267,8 @@ async function loadSceneKey(key, fromKey, withFade = true) {
   G.world = scene; G.sc = sc; G.sceneKey = key;
   clearLabels();
   G.exits = [];
-  for (const { k, a } of dirs) {
-    const r = EXIT_R;
-    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+  for (const [i, { k, a }] of dirs.entries()) {
+    const [x, z] = sc.exitPts[i];
     const sign = signpost(`→ ${SCENE_LABEL[k]}`);
     sign.position.set(x, sc.heightAt(x, z), z);
     sign.rotation.y = -a + Math.PI / 2;
@@ -313,7 +317,7 @@ function applyLight(season, fogColor, near, far) {
   const L = LIGHT[season];
   shared.uLightCol.value.set(L.sun);
   shared.uAmb.value.set(L.amb);
-  const fc = fogColor ?? (G.sceneKey === 'cordillera' ? 0x9cb4d8 : L.fog);
+  const fc = fogColor ?? (G.sceneKey === 'cordillera' ? 0x9cb4d8 : G.sc?.seaY != null ? 0xa4b8c8 : L.fog);
   shared.uFogColor.value.set(fc);
   renderer.setClearColor(fc);
   shared.uFogNear.value = near ?? 18; shared.uFogFar.value = far ?? 62;
@@ -356,7 +360,7 @@ function updateHud() {
   }
   svg += `<text x="0" y="3" text-anchor="middle" font-size="8" fill="#eef1f8" font-family="monospace">${G.month + 1}</text>`;
   w.innerHTML = svg;
-  $('book-n').textContent = `${[...G.book].filter(id => G.index.byId.has(id)).length}/${Object.keys(MVP).length}`;
+  $('book-n').textContent = `${featuredList().filter(sci => G.book.has(G.index.bySci.get(sci)?.id)).length}/${featuredList().length}`;
   $('b-pause').textContent = G.paused ? '▶' : '⏸';
   $('b-pause').title = G.paused ? 'Reanudar el tiempo' : 'Pausar el tiempo';
 }
@@ -584,8 +588,8 @@ function birdClicked(a) {
   if (isNew) {
     G.book.add(a.sp.id); saveBook();
     poroto.write();
-    const n = [...G.book].filter(id => MVP[G.index.byId.get(id)?.sciName]).length;
-    toast(`¡Nueva especie en la libreta! <b>${a.sp.comName}</b> (${n}/${Object.keys(MVP).length})`, 3.5);
+    const n = featuredList().filter(sci => G.book.has(G.index.bySci.get(sci)?.id)).length;
+    toast(`¡Nueva especie en la libreta! <b>${a.sp.comName}</b> (${n}/${featuredList().length} en ${G.reg.meta.name})`, 3.5);
     updateHud();
   }
 }
@@ -597,31 +601,31 @@ $('b-sound').onclick = () => { G.muted = !G.muted; setMuted(G.muted); $('b-sound
 $('b-map').onclick = () => {
   const sc = G.reg.terrain.scenes;
   openPanel(`<h2>MAPA · ${G.reg.meta.name}</h2><p class="dim">Cuatro rincones reales de la región, unidos por senderos.</p><div class="scenes">${
-    SCENE_ORDER.map(k => `<button class="btn" data-k="${k}" ${k === G.sceneKey ? 'disabled' : ''}>${SCENE_LABEL[k]} — ${sc[k].name} · ${sc[k].hMin}–${sc[k].hMax} m</button>`).join('')
+    sceneOrder().map(k => `<button class="btn" data-k="${k}" ${k === G.sceneKey ? 'disabled' : ''}>${SCENE_LABEL[k]} — ${sc[k].name} · ${sc[k].hMin}–${sc[k].hMax} m</button>`).join('')
   }</div><p class="dim" style="margin-top:10px"><button class="btn" id="to-hub">← Volver al mapa de Chile</button></p>`);
   $('panel-body').querySelectorAll('[data-k]').forEach(b => { b.onclick = () => { $('panel').hidden = true; travel(b.dataset.k); }; });
   $('to-hub').onclick = async () => { $('panel').hidden = true; await fade(true, 'Volviendo al mapa de Chile…'); G.reg = null; enterHub(); };
 };
 $('b-book').onclick = () => {
-  const cards = Object.keys(MVP).map(sci => {
+  const cards = featuredList().map(sci => {
     const sp = G.index.bySci.get(sci);
     const seen = G.book.has(sp.id);
     const pal = sp.palette || {};
     const sw = ['back', 'belly', 'head', 'throat', 'wing', 'accent'].filter(z => pal[z]).map(z => `<i style="background:rgb(${pal[z].join(',')})" title="${z}"></i>`).join('');
     return seen
-      ? `<div class="card"><b>${sp.comName}</b><div class="dim"><i>${sp.sciName}</i></div><div class="dim">${SCENE_LABEL[sp.habitat?.rm] || ''} · ${Math.round(sp.morphology?.mass || 0)} g</div><div class="sw">${sw}</div></div>`
-      : `<div class="card unk">???<div class="dim">${SCENE_LABEL[sp.habitat?.rm] || ''}</div></div>`;
+      ? `<div class="card"><b>${sp.comName}</b><div class="dim"><i>${sp.sciName}</i></div><div class="dim">${SCENE_LABEL[G.feat[sci]] || ''} · ${Math.round(sp.morphology?.mass || 0)} g</div><div class="sw">${sw}</div></div>`
+      : `<div class="card unk">???<div class="dim">${SCENE_LABEL[G.feat[sci]] || ''}</div></div>`;
   }).join('');
-  openPanel(`<h2>LIBRETA DE CAMPO</h2><p class="dim">Haz clic en un ave para anotarla. Colores sacados de fotos de referencia.</p><div class="book">${cards}</div>`);
+  openPanel(`<h2>LIBRETA DE CAMPO · ${G.reg.meta.name}</h2><p class="dim">Haz clic en un ave para anotarla. Colores sacados de fotos de referencia.</p><div class="book">${cards}</div>`);
 };
 $('b-credits').onclick = () => {
-  const clips = Object.keys(MVP).map(s => G.index.bySci.get(s)).filter(s => s?.clip)
+  const clips = featuredList().map(s => G.index.bySci.get(s)).filter(s => s?.clip)
     .map(s => `<li>${s.comName}: <a href="${s.clip.url}" target="_blank" rel="noopener">${s.clip.recordist}</a> · ${s.clip.license}</li>`).join('');
   openPanel(`<h2>CRÉDITOS</h2>
   <p><b>Datos de aves:</b> GBIF.org (2026), descargas de ocurrencias de Aves en Chile (principalmente eBird), años 2017–2024; métricas corregidas por esfuerzo de muestreo. Proyecto <i>Nómadas & sedentarios</i> (Visualización de Información 2026-2).</p>
   <p><b>Cantos:</b> Xeno-canto (licencias Creative Commons por grabación):</p><ul>${clips}</ul>
-  <p>La Turca no tiene grabación en el set: su canto es sintético.</p>
-  <p><b>Morfología y hábitat:</b> AVONET (Tobias et al. 2022, CC BY 4.0) y EltonTraits 1.0 (Wilman et al. 2014, CC0). <b>Paletas:</b> derivadas de fotos de referencia de iNaturalist (CC0 / CC BY / CC BY-SA; autores en los datos). <b>Terreno:</b> AWS Terrain Tiles, ESA WorldCover 2021 (CC BY 4.0) y © OpenStreetMap (ODbL).</p>
+  <p>Las especies sin grabación en el set (como la Turca) tienen un canto sintético.</p>
+  <p><b>Morfología y hábitat:</b> AVONET (Tobias et al. 2022, CC BY 4.0) y EltonTraits 1.0 (Wilman et al. 2014, CC0). <b>Paletas:</b> derivadas de fotos de referencia de iNaturalist (CC0 / CC BY / CC BY-SA; autores en los datos), con zonas anotadas a mano o con un modelo de visión (Qwen3-VL) y revisadas por una persona. <b>Terreno:</b> AWS Terrain Tiles, ESA WorldCover 2021 (CC BY 4.0) y © OpenStreetMap (ODbL).</p>
   <p class="dim">Clic para caminar · clic en un ave para conocerla · rueda: zoom · Q/E o ←/→: girar la cámara.</p>`);
 };
 
@@ -643,7 +647,9 @@ function frame(now) {
   if (G.mode === 'hub' || G.mode === 'scene') {
     const heightAt = G.mode === 'scene' ? G.sc.heightAt : G.hubWorld.heightAt;
     // caída desde el vacío al entrar al menú
-    const blocked = G.mode === 'scene' ? (x, z) => G.sc.obstacles.some(o => Math.hypot(o.x - x, o.z - z) < o.r) : null;
+    // no atravesar edificios ni meterse al mar (terreno bajo el nivel del agua)
+    const blocked = G.mode === 'scene' ? (x, z) => G.sc.obstacles.some(o => Math.hypot(o.x - x, o.z - z) < o.r)
+      || (G.sc.seaY != null && G.sc.heightAt(x, z) < G.sc.seaY - 0.02) : null;
     const st = poroto.update(dt, heightAt, blocked);
     if (poroto.drop > 0) {
       poroto.drop = Math.max(0, poroto.drop - dt * 18);
@@ -653,6 +659,7 @@ function frame(now) {
     if (st.sleep && bubble.hidden) say('Zzz…', 2);
     if (G.mode === 'scene') {
       G.director.update(dt, G.paused);
+      G.sc.animate?.(now / 1000);
       updateLive(dt);
       if (!G.paused && !G.dialogOpen) {
         G.monthT += dt;
