@@ -16,21 +16,46 @@ const CLASS_LABEL = {
   visitante_invernal: 'visitante de invierno', ocasional: 'ocasional',
 };
 
-// Especies del MVP: artículo, onomatopeya del saludo y escena de la RM donde viven.
-export const MVP = {
-  'Turdus falcklandii': { art: 'el', hi: '¡Chiuit chiuit!', plan: 'paseriforme' },
-  'Zonotrichia capensis': { art: 'el', hi: '¡Tiu tiu tiriú!', plan: 'paseriforme' },
-  'Troglodytes musculus': { art: 'el', hi: '¡Trrr-tiriri!', plan: 'cola_alta' },
-  'Zenaida auriculata': { art: 'la', hi: '¡Cu-cuuu!', plan: 'paloma' },
-  'Pteroptochos megapodius': { art: 'la', hi: '¡Hu-hu-hu-huuu!', plan: 'cola_alta' },
-  'Mimus thenca': { art: 'la', hi: '¡Chirivirí chirí!', plan: 'paseriforme' },
-  'Scelorchilus albicollis': { art: 'el', hi: '¡Tapa-tapa-culo!', plan: 'cola_alta' },
-  'Diuca diuca': { art: 'la', hi: '¡Diu-diu-diuca!', plan: 'paseriforme' },
-  'Vanellus chilensis': { art: 'el', hi: '¡Tero-tero-teru!', plan: 'playero' },
-  'Sturnella loyca': { art: 'la', hi: '¡Tsi-trriii!', plan: 'paseriforme' },
-  'Oreotrochilus leucopleurus': { art: 'el', hi: '¡Tsip! ¡Tsip!', plan: 'picaflor' },
-  'Muscisaxicola frontalis': { art: 'la', hi: '¡Tic… tic!', plan: 'paseriforme' },
+// Voz de las especies destacadas: artículo y onomatopeya del saludo (el resto usa "¡Pío!").
+// Qué especies aparecen en cada escena lo dice species.habitat.scenes = {región: escena}.
+export const VOICE = {
+  'Turdus falcklandii': { art: 'el', hi: '¡Chiuit chiuit!' },
+  'Zonotrichia capensis': { art: 'el', hi: '¡Tiu tiu tiriú!' },
+  'Troglodytes musculus': { art: 'el', hi: '¡Trrr-tiriri!' },
+  'Zenaida auriculata': { art: 'la', hi: '¡Cu-cuuu!' },
+  'Pteroptochos megapodius': { art: 'la', hi: '¡Hu-hu-hu-huuu!' },
+  'Mimus thenca': { art: 'la', hi: '¡Chirivirí chirí!' },
+  'Scelorchilus albicollis': { art: 'el', hi: '¡Tapa-tapa-culo!' },
+  'Diuca diuca': { art: 'la', hi: '¡Diu-diu-diuca!' },
+  'Vanellus chilensis': { art: 'el', hi: '¡Tero-tero-teru!' },
+  'Sturnella loyca': { art: 'la', hi: '¡Tsi-trriii!' },
+  'Oreotrochilus leucopleurus': { art: 'el', hi: '¡Tsip! ¡Tsip!' },
+  'Muscisaxicola frontalis': { art: 'la', hi: '¡Tic… tic!' },
+  'Pelecanus thagus': { art: 'el', hi: '(…silencio de pelícano…) ¡Gruac!' },
+  'Larus dominicanus': { art: 'la', hi: '¡Kiau-kiau-kiau!' },
+  'Haematopus palliatus': { art: 'el', hi: '¡Pli-pli-pilpilén!' },
+  'Leucophaeus modestus': { art: 'la', hi: '¡Kruu-kruu!' },
+  'Phalacrocorax brasilianus': { art: 'el', hi: '¡Groc!' },
+  'Egretta thula': { art: 'la', hi: '¡Graaak!' },
+  'Himantopus mexicanus': { art: 'el', hi: '¡Kek-kek-kek!' },
+  'Anas georgica': { art: 'el', hi: '¡Cuac-cuac!' },
+  'Phytotoma rara': { art: 'la', hi: '¡Rrraaa-ra!' },
+  'Patagona gigas': { art: 'el', hi: '¡Tsuiip!' },
+  'Callipepla californica': { art: 'la', hi: '¡Cu-cá-cou!' },
+  'Anairetes parulus': { art: 'el', hi: '¡Tri-tri-tri!' },
+  'Cathartes aura': { art: 'el', hi: '(los jotes no cantan: solo sisean) ¡Shhh!' },
+  'Columbina picui': { art: 'la', hi: '¡Cuú-cuú!' },
+  'Sephanoides sephaniodes': { art: 'el', hi: '¡Tsi-tsi-tsi!' },
+  'Columba livia': { art: 'la', hi: '¡Gru-gruu!' },
 };
+export const MVP = VOICE; // compatibilidad
+
+// Especies destacadas de una región: {sciName: escena}.
+export function featuredIn(index, code) {
+  const out = {};
+  for (const sp of index.species) { const sc = sp.habitat?.scenes?.[code]; if (sc) out[sp.sciName] = sc; }
+  return out;
+}
 
 export async function loadJSON(path) {
   const r = await fetch(path);
@@ -63,7 +88,6 @@ export function freqOf(region, sid, m) {
   return e ? e[2] : 120;
 }
 
-const MONTHS_SHORT = null;
 function monthsRange(sp, months) {
   const on = [...Array(12).keys()].filter(m => presentIn(sp, m));
   if (on.length >= 12) return null;
@@ -80,7 +104,7 @@ const DIET = {
 };
 
 export function birdDialog(index, sp, regionId) {
-  const mv = MVP[sp.sciName] || { art: '', hi: '¡Pío!' };
+  const mv = VOICE[sp.sciName] || { art: '', hi: '¡Pío!' };
   const months = index.months;
   const cls = sp.regionalClass[String(regionId)] || sp.class;
   const lines = [];
@@ -112,7 +136,8 @@ export function welcomeText(index, meta, month, yearLabel = 'año típico') {
   const vis = (ms.visitante_estival >= ms.visitante_invernal ? meta.topSummer : meta.topWinter)
     .map(id => index.byId.get(id)).filter(s => s && presentIn(s, month)).slice(0, 3).map(s => s.comName);
   const car = meta.characteristic.slice(0, 2).map(name).filter(Boolean);
-  let t = `Bienvenido a la <b>${meta.name}</b>, ${yearLabel}. En ${index.months[month]} se registran unas <b>${ms.richness}</b> especies. `;
+  const art = /^Metropolitana$/.test(meta.name) ? 'la ' : ''; // "la Metropolitana", pero "Valparaíso"
+  let t = `Bienvenido a ${art}<b>${meta.name}</b>, ${yearLabel}. En ${index.months[month]} se registran unas <b>${ms.richness}</b> especies. `;
   t += `Nuestros residentes más vistos son ${list(res)}. `;
   if (vis.length) t += `Este mes nos visitan ${list(vis)}. `;
   if (car.length) t += `Y si tienes suerte, verás a ${list(car)}, más propios de aquí que del resto del país.`;
@@ -121,4 +146,4 @@ export function welcomeText(index, meta, month, yearLabel = 'año típico') {
 
 const list = a => a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' y ' + a[a.length - 1];
 
-export { CLASS_LABEL, MONTHS_SHORT };
+export { CLASS_LABEL };
