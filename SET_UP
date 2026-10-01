@@ -21,6 +21,11 @@ genera el repo principal.
 2. **Menú principal.** El avatar cae del vacío a un espacio donde flotan las
    16 regiones como objetos o portales, ordenadas de norte a sur (formando la
    silueta de Chile).
+   *Implementado (js/hub.js):* Chile es el pasillo. Un diorama del relieve real
+   (`data/game/chile-relief.json`, generado con `python3 scripts/build_relief.py` desde AWS Terrain
+   Tiles; 1 unidad ≈ 18,5 km en planta y 1 km en altura) flota en el vacío. Poroto camina por la
+   Ruta 5 y la Carretera Austral, entre los Andes y la Cordillera de la Costa, y cada región tiene una
+   puerta del material de su zona (adobe, colonial, tejuela, chapa) con hitos con nombre.
 3. **Entrar a una región.** Clic en el portal y elección del año: por defecto
    el **año típico**; también 2017–2024.
 4. **Cartel de bienvenida** al entrar, generado desde los datos. Ejemplo:
