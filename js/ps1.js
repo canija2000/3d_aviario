@@ -4,7 +4,8 @@
 
 export const shared = {
   uSnap: { value: new THREE.Vector2(160, 120) },
-  uJitter: { value: 1 }, uAffine: { value: 1 }, uDither: { value: 1 },
+  // Estilo N64: sin temblor de vértices ni texturas afines (eran del look PS1); se mantiene la trama de color.
+  uJitter: { value: 0 }, uAffine: { value: 0 }, uDither: { value: 1 },
   uLightDir: { value: new THREE.Vector3(0.4, 1, 0.3).normalize() },
   uLightCol: { value: new THREE.Color(0xe8d8b0) },
   uAmb: { value: new THREE.Color(0x6a7466) },
@@ -53,6 +54,7 @@ const FS = `
   uniform sampler2D map; uniform vec3 uTint; uniform float uDither; uniform vec3 uFogColor;
   uniform float uAlphaMode; uniform float uSnow; uniform float uSnowable; uniform float uFlash;
   uniform float uCutNear; uniform float uCutaway; uniform float uVcol;
+  uniform sampler2D uDetail; uniform float uDetailAmt; uniform vec2 uDetailRep;
   varying vec3 vUvw; varying vec3 vLight; varying float vFog; varying float vUp; varying float vDepth; varying vec3 vCol;
   float b2(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
   float bayer(vec2 a) { return b2(0.5 * a) * 0.25 + b2(a); }
@@ -64,10 +66,11 @@ const FS = `
     else if (uAlphaMode > 0.5) { if (t.a < 0.5) discard; }
     vec3 base = t.rgb * uTint;
     base *= mix(vec3(1.0), pow(vCol, vec3(1.0 / 2.2)), uVcol); // sombra horneada en colores por vértice (modelos N64)
+    if (uDetailAmt > 0.0) base *= mix(vec3(1.0), texture2D(uDetail, vUvw.xy / vUvw.z * uDetailRep).rgb * 2.0, uDetailAmt); // grano repetido (suelo)
     if (uSnowable > 0.5) base = mix(base, vec3(0.93, 0.95, 1.0), uSnow * smoothstep(0.55, 0.9, vUp) * step(th, 0.85));
     vec3 c = base * vLight + uFlash;
     c = mix(c, uFogColor, vFog);
-    if (uDither > 0.5) { c += (th - 0.47) / 20.0; c = floor(c * 31.0 + 0.5) / 31.0; }
+    if (uDither > 0.5) { c += (th - 0.47) / 40.0; c = floor(c * 31.0 + 0.5) / 31.0; }
     gl_FragColor = vec4(c, 1.0);
   }`;
 
@@ -85,6 +88,8 @@ export function mat(tex, o = {}) {
       uCutaway: { value: o.cutaway ? 1 : 0 },
       uSteady: { value: o.steady ? 1 : 0 },
       uVcol: { value: o.vcol ?? 0 },
+      uDetail: { value: o.detail ?? null }, uDetailAmt: { value: o.detail ? (o.detailAmt ?? 0.6) : 0 },
+      uDetailRep: { value: new THREE.Vector2(o.detailRep ?? 1, o.detailRep ?? 1) },
       ...(o.perspective ? { uAffine: { value: 0 } } : {}), // texturas sin deformación afín (N64)
     },
     vertexColors: !!o.vcol,
@@ -116,7 +121,9 @@ export function makeTex(w, h, fn) {
   }
   g.putImageData(im, 0, 0);
   const t = new THREE.CanvasTexture(cv);
-  t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  // bilineal + mipmaps, como el N64 (antes NearestFilter sin mipmaps, look PS1): sin mipmaps, de lejos las
+  // texturas parpadean como estática
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return t;
 }

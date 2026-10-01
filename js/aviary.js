@@ -3,6 +3,7 @@
 // El director elige qué especies hay cada mes (datos del año típico) y quién canta (máx. 2 a la vez,
 // con probabilidad proporcional a su frecuencia).
 /* global THREE */
+import { birdScale, BIRD_PICK_RADIUS } from './scale.js';
 import { buildBird, planFor, PLANS } from './bird.js';
 import { presentIn, freqOf, CLASS_COLORS } from './data.js';
 import { loadClip, playAt, playSynth, audioReady } from './audio.js';
@@ -17,7 +18,7 @@ export class BirdAgent {
     this.plan = planFor(sp);
     this.traits = PLANS[this.plan] || {};
     this.m = buildBird(sp, this.plan);
-    this.s = Math.max(0.25, Math.min(1.0, 0.5 * (sp.morphology?.scale ?? 1)));
+    this.s = birdScale(sp); // tabla de escala: largo real × exageración (js/scale.js)
     this.m.group.scale.setScalar(this.s);
     this.cls = sp.regionalClass[String(regionId)] || sp.class;
     this.color = CLASS_COLORS[this.cls] || '#ffffff';
@@ -32,6 +33,7 @@ export class BirdAgent {
     this.proxy = new THREE.Mesh(new THREE.SphereGeometry(1.6, 6, 4), new THREE.MeshBasicMaterial({ visible: false }));
     this.proxy.userData.agent = this;
     this.m.group.add(this.proxy); this.proxy.position.y = 1.3;
+    this.proxy.scale.setScalar(Math.max(1, BIRD_PICK_RADIUS / (1.6 * this.s))); // aves chicas: igual se pueden clicar
   }
 
   groundY(x, z) { return this.scene.heightAt(x, z); }

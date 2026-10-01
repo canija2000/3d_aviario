@@ -5,6 +5,7 @@ import { shared, mat, makeTex, makeVary, mulberry32, createRenderer, fitRenderer
 import { loadWorld, loadRegion, loadJSON, DATA_BASE, CLASS_LABEL, birdDialog, welcomeText, featuredIn } from './data.js';
 import { buildScene, signpost, WORLD } from './scene.js';
 import { loadPoroto } from './poroto.js';
+import { CAMERA, PORORO_BUBBLE_Y } from './scale.js';
 import { Director } from './aviary.js';
 import { buildBird } from './bird.js';
 import { unlockAudio, setListener, setMuted, blip, setAmbience, duckAmbience } from './audio.js';
@@ -32,7 +33,7 @@ const featuredList = () => Object.keys(G.feat || {});
 const G = {
   mode: 'start', index: null, reg: null, props: null, sceneKey: null, sc: null, world: null, director: null,
   month: new Date().getMonth(), monthT: 0, paused: false, muted: false,
-  hover: null, dialogOpen: false, book: loadBook(), cam: { yaw: -Math.PI / 2, pitch: 0.62, dist: 12, target: new THREE.Vector3() },
+  hover: null, dialogOpen: false, book: loadBook(), cam: { yaw: -Math.PI / 2, pitch: CAMERA.scene.pitch, dist: CAMERA.scene.dist, target: new THREE.Vector3() },
   quirkT: 12, exits: [], portals: [],
 };
 
@@ -242,7 +243,7 @@ async function enterHub() {
   poroto.pos.copy(G.hubWorld.rmPoint); poroto.pos.x -= 0.5;
   poroto.drop = 14; poroto.heading = -Math.PI / 2;
   poroto.season = 'primavera';
-  G.cam.dist = 20; G.cam.pitch = 0.75; G.cam.yaw = -Math.PI / 2 + 0.5; G.cam.distGoal = G.cam.pitchGoal = G.cam.yawGoal = undefined;
+  G.cam.dist = CAMERA.hub.dist; G.cam.pitch = CAMERA.hub.pitch; G.cam.yaw = -Math.PI / 2 + 0.5; G.cam.distGoal = G.cam.pitchGoal = G.cam.yawGoal = undefined;
   G.cam.target.copy(poroto.pos);
   $('hud').hidden = true;
   await fade(false);
@@ -314,7 +315,7 @@ async function loadSceneKey(key, fromKey, withFade = true) {
   if (back) { poroto.pos.set(back.sign.position.x * 0.6, 0, back.sign.position.z * 0.6); }
   else poroto.pos.set(0, 0, 0);
   poroto.target = null; poroto.state = 'idle'; poroto.drop = 0;
-  G.cam.dist = 13; G.cam.pitch = 0.72; G.cam.yaw = -Math.PI / 2; G.cam.distGoal = G.cam.pitchGoal = G.cam.yawGoal = undefined;
+  G.cam.dist = CAMERA.scene.dist; G.cam.pitch = CAMERA.scene.pitch; G.cam.yaw = -Math.PI / 2; G.cam.distGoal = G.cam.pitchGoal = G.cam.yawGoal = undefined;
   G.cam.target.set(poroto.pos.x, sc.heightAt(poroto.pos.x, poroto.pos.z), poroto.pos.z);
   G.director.root = scene;
   G.director.setScene(key, sc, G.month, true);
@@ -573,7 +574,7 @@ const keys = new Set();
 let rdrag = null;
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
-  G.cam.distGoal = Math.min(24, Math.max(6, (G.cam.distGoal ?? G.cam.dist) * (1 + Math.sign(e.deltaY) * 0.12)));
+  G.cam.distGoal = Math.min(CAMERA.maxDist, Math.max(CAMERA.minDist, (G.cam.distGoal ?? G.cam.dist) * (1 + Math.sign(e.deltaY) * 0.12)));
 }, { passive: false });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('pointerdown', e => { if (e.button === 2) { rdrag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); } });
@@ -780,7 +781,7 @@ function frame(now) {
     steerCamera(dt);
     updateMarker(dt);
     const c = G.cam;
-    const goal = new THREE.Vector3(poroto.pos.x, poroto.root.position.y + 0.8, poroto.pos.z);
+    const goal = new THREE.Vector3(poroto.pos.x, poroto.root.position.y + CAMERA.targetY, poroto.pos.z);
     c.target.lerp(goal, 1 - Math.exp(-dt * 3));
     const cp = Math.cos(c.pitch);
     camera.position.set(c.target.x + cp * Math.cos(c.yaw) * c.dist, c.target.y + Math.sin(c.pitch) * c.dist, c.target.z - cp * Math.sin(c.yaw) * c.dist);
@@ -794,7 +795,7 @@ function frame(now) {
     // globito de Poroto
     if (!bubble.hidden) {
       bubbleT -= dt;
-      const p = poroto.root.position.clone(); p.y += 2.4; p.project(camera);
+      const p = poroto.root.position.clone(); p.y += PORORO_BUBBLE_Y; p.project(camera);
       bubble.style.left = ((p.x + 1) / 2 * window.innerWidth - 20) + 'px';
       bubble.style.top = ((1 - p.y) / 2 * window.innerHeight - 30) + 'px';
       if (bubbleT <= 0) bubble.hidden = true;

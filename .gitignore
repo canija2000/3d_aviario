@@ -1,5 +1,5 @@
 
-# Modelos ripeados de juegos: solo referencia local, no se versionan ni publican
-Nintendo 64 - */
+# Modelos ripeados de juegos: solo referencia local para Blender, no se versionan ni publican
+assets/referencias/
 .DS_Store
 *.blend1
