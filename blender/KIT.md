@@ -56,8 +56,8 @@ Una malla base por plan; la especie cambia paleta (textura), proporciones (pico,
 | `cola_alta` | chucao, turca, chercán | 80–120 | (base paseriforme) |
 | `paloma` ✔ | tórtola, torcaza | ~210 | HL2 Pigeon (540, reducir) |
 | `gaviota` ✔ | gaviotas, petreles, albatros (Laridae 29, Procellariidae 31) | ~210 | HL2 Seagull (470, reducir) |
-| `pinguino` | pingüinos | 100–160 | Zoo Tycoon 2 Emperor Penguin (1154) y cría (780) |
-| `flamenco` | flamencos | 120–180 | Zoo Tycoon 2 Greater Flamingo (1027) |
+| `pinguino` ✔ | pingüinos | ~180 | Zoo Tycoon 2 Emperor Penguin (1154) y cría (780) |
+| `flamenco` ✔ | flamencos (cuello en S, también cisne y garza) | ~230 | Zoo Tycoon 2 Greater Flamingo (1027) |
 | `garza` | garzas | 120–180 | Secretary Bird (940, patas y cuello) |
 | `pato`, `cisne` | patos, cisnes (Anatidae 43) | 100–160 | — (falta) |
 | `playero` | playeros, chorlos, queltehue (Scolopacidae 34, Charadriidae 13) | 80–120 | — (falta) |

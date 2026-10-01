@@ -10,7 +10,8 @@ import { KIT } from './kit.js';
 // Piezas N64 modeladas en Blender (blender/aves_build.py → models/kit/ave_partes.glb). Están en el mismo
 // espacio que las primitivas de antes; si no cargaron, se usan las primitivas.
 // Juego de piezas propio por plan (paloma, gaviota); el resto usa las del ave base.
-const PART_SET = { paloma: 'paloma', gaviota: 'gaviota' };
+const PART_SET = { paloma: 'paloma', gaviota: 'gaviota', pinguino: 'pinguino', flamenco: 'flamenco' };
+const S_NECK = new Set(['flamenco', 'cisne', 'garza']);
 function part(name, fallback, plan) {
   const meshes = KIT.ave_partes?.meshes || [];
   const e = meshes.find(m => m.name === `${PART_SET[plan] || 'ave'}_${name}`) || meshes.find(m => m.name === `ave_${name}`);
@@ -54,7 +55,7 @@ export const PLANS = {
   codorniz: { tilt: 0.1, tail: 0.1, head: 0.55, legs: 0.7, body: [1.2, 0.95, 0.9], neck: 0.05, topknot: true },
   // Magallanes
   nandu: { tilt: 0.3, tail: 0.1, head: 0.4, legs: 3.0, body: [1.3, 1.1, 1.0], neck: 0.1, neckLen: 1.25, wing: 0.55, noFly: true, stride: 2.2 },
-  pinguino: { tilt: 1.35, tail: 0.1, head: 0.5, legs: 0.35, body: [1.2, 0.85, 0.8], neck: 0, wing: 0.8, swim: true, noFly: true, waddle: true, stride: 0.6 },
+  pinguino: { tilt: 1.35, tail: 1.0, tailPos: [-0.5, 0.12], head: 0.5, legs: 0.35, body: [1.2, 0.85, 0.8], neck: 0, wing: 0.8, swim: true, noFly: true, waddle: true, stride: 0.6 },
   flamenco: { tilt: 0.5, tail: 0.2, head: 0.35, legs: 3.0, body: [1.05, 0.7, 0.62], neck: 0.1, neckLen: 1.3, wing: 1.3, bentBill: true },
   cisne: { tilt: 0.05, tail: 0.15, head: 0.42, legs: 0.45, body: [1.5, 0.85, 1.0], neck: 0.1, neckLen: 1.2, wing: 1.3, bill: true, swim: true },
   loro: { tilt: 0.7, tail: 0.5, head: 0.6, legs: 0.7, body: [1.0, 0.85, 0.8], neck: 0, hookBill: true },
@@ -180,7 +181,7 @@ export function buildBird(sp, plan = 'paseriforme') {
     add(w, s > 0 ? wingGeo : wingGeoR, mWing); w.userData.side = s; wings.push(w);
   }
 
-  const tail = new THREE.Group(); tail.position.set(-1.0 * pl.body[0] / 1.15, 0.9, 0); bodyPivot.add(tail);
+  const tail = new THREE.Group(); tail.position.set(...(pl.tailPos || [-1.0 * pl.body[0] / 1.15, 0.9]), 0); // tailPos: aves erguidas (pingüino) bodyPivot.add(tail);
   add(tail, sideUV(part('cola', () => new THREE.BoxGeometry(1, 0.07, 0.5).translate(-0.5, 0, 0), plan).scale(1.05 * fTail, 1, plan === 'picaflor' ? 0.6 : 0.84)), mat(T.tail));
 
   const hs = pl.head;
@@ -189,9 +190,16 @@ export function buildBird(sp, plan = 'paseriforme') {
   const head = new THREE.Group(); head.position.copy(headBase); bodyPivot.add(head);
   if (nl > 0) { // cuello visible entre el pecho y la cabeza
     const from = new THREE.Vector3(0.75 - pl.tilt * 0.2, 1.1 + pl.tilt * 0.35, 0), dir = headBase.clone().sub(from);
-    const neck = add(bodyPivot, new THREE.CylinderGeometry(hs * 0.45, hs * 0.6, dir.length(), 5), mat(T.head));
-    neck.position.copy(from).addScaledVector(dir, 0.5);
-    neck.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+    if (S_NECK.has(plan)) { // cuello en S (flamenco, cisne, garza): tubo curvo de 5 lados
+      const L = dir.length(), n = dir.clone().normalize(), side = new THREE.Vector3(n.y, -n.x, 0);
+      const curve = new THREE.CatmullRomCurve3([from.clone(), from.clone().addScaledVector(dir, 0.33).addScaledVector(side, L * 0.16),
+        from.clone().addScaledVector(dir, 0.7).addScaledVector(side, -L * 0.1), headBase.clone()]);
+      add(bodyPivot, new THREE.TubeGeometry(curve, 8, hs * 0.42, 5), mat(T.head));
+    } else {
+      const neck = add(bodyPivot, new THREE.CylinderGeometry(hs * 0.45, hs * 0.6, dir.length(), 5), mat(T.head));
+      neck.position.copy(from).addScaledVector(dir, 0.5);
+      neck.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+    }
   }
   add(head, sideUV(part('cabeza', () => new THREE.SphereGeometry(1, 6, 4), plan).scale(hs, hs * 0.93, hs * 0.9)), mat(T.head));
   const mBeak = mat(plain, { tint: T.beak });

@@ -1,5 +1,5 @@
 # Piezas N64 de las aves para js/bird.js: cuerpo, cabeza, ala y cola del ave base (paseriforme y derivados),
-# de la paloma y de la gaviota.
+# de la paloma, la gaviota, el pingüino y el flamenco.
 # Están en el mismo espacio y tamaño que las primitivas que reemplazan (esfera unitaria del cuerpo y la
 # cabeza, ala de largo ~2 a lo largo de −X, cola de largo 1), así bird.js mantiene pivotes, animaciones,
 # proporciones por especie (AVONET) y la pintura por especie (proyección lateral, sideUV).
@@ -121,8 +121,27 @@ flat_part('gaviota_ala', [(0.65, 0.04), (0.4, 0.26), (-0.2, 0.3), (-0.8, 0.2), (
                           (-0.9, -0.1), (-0.3, -0.22), (0.3, -0.16)], curve=0.04)
 flat_part('gaviota_cola', [(0.0, 0.15), (-1.0, 0.24), (-1.0, -0.24), (0.0, -0.15)], thick=0.045)
 
+# ---------- pingüino: huso erguido (bird.js lo para con tilt), aletas planas y angostas, cola mínima ----------
+# El eje X del cuerpo queda vertical en el juego: −X = abajo (patas/cola), +X = arriba (cabeza).
+link('pinguino_cuerpo', lathe_x([(-1.3, 0), (-1.12, 0.55), (-0.65, 0.95), (-0.1, 1.0), (0.45, 0.85), (0.85, 0.58), (1.08, 0)],
+                               8, ry=0.9, rz=0.95, rot=math.pi / 8), m_gris)
+link('pinguino_cabeza', lathe_x([(-0.95, 0), (-0.7, 0.72), (-0.15, 0.96), (0.4, 0.86), (0.82, 0.5), (1.02, 0)],
+                               7, ry=0.85, rz=0.92, rot=math.pi / 2), m_gris)
+flat_part('pinguino_ala', [(0.6, 0.1), (0.2, 0.2), (-0.6, 0.17), (-1.2, 0.08), (-1.35, -0.02), (-1.1, -0.12),
+                           (-0.4, -0.16), (0.3, -0.12)], curve=0.03)
+flat_part('pinguino_cola', [(0.0, 0.12), (-1.0, 0.14), (-1.0, -0.14), (0.0, -0.12)], thick=0.05)
+
+# ---------- flamenco: cuerpo chico y ovalado; ala plegada en punta (primarias negras desde la textura) ----------
+link('flamenco_cuerpo', lathe_x([(-1.15, 0), (-0.92, 0.45), (-0.42, 0.86), (0.18, 0.98), (0.68, 0.8), (1.0, 0)],
+                               8, ry=0.82, rz=0.92, zoff=lambda x: 0.05 * max(0.0, 1 - abs(x)), rot=math.pi / 8), m_gris)
+link('flamenco_cabeza', lathe_x([(-0.9, 0), (-0.65, 0.66), (-0.15, 0.92), (0.4, 0.84), (0.82, 0.48), (1.0, 0)],
+                               7, ry=0.8, rz=0.9, rot=math.pi / 2), m_gris)
+flat_part('flamenco_ala', [(0.65, 0.05), (0.4, 0.3), (-0.3, 0.34), (-0.9, 0.2), (-1.35, 0.0),
+                           (-0.95, -0.14), (-0.3, -0.26), (0.35, -0.18)], curve=0.06)
+flat_part('flamenco_cola', [(0.0, 0.14), (-1.0, 0.2), (-1.0, -0.2), (0.0, -0.14)], thick=0.04)
+
 # vista ordenada en la escena: una fila por juego de piezas
-for row, pre in enumerate(('ave', 'paloma', 'gaviota')):
+for row, pre in enumerate(('ave', 'paloma', 'gaviota', 'pinguino', 'flamenco')):
     for i, n in enumerate(('cuerpo', 'cabeza', 'ala', 'cola')):
         bpy.data.objects[f'{pre}_{n}'].location = (i * 3.2, row * 3.0, 0)
 

@@ -97,8 +97,8 @@ de cada especie. **Antes:** cuerpo, cabeza, ala y cola eran esferas y una caja. 
 modeladas en Blender (`blender/aves_build.py` → `models/kit/ave_partes.glb`): cuerpo en gota, cabeza con
 frente, ala plana con las primarias en punta y cola en abanico, en el mismo espacio que las primitivas
 (se conservan pivotes, animaciones y pintura por especie). Patas con pie plano de 4 triángulos.
-~220 triángulos por ave (antes 188). Paloma y gaviota tienen piezas propias (abajo); los demás planes usan las del ave base
-hasta tener las suyas (pingüino, flamenco…).
+~220 triángulos por ave (antes 188). Paloma, gaviota, pingüino y flamenco tienen piezas propias (abajo); los demás planes usan las del
+ave base hasta tener las suyas.
 
 ### Planes propios: paloma y gaviota
 
@@ -109,6 +109,15 @@ petreles, albatros, salteadores): cuerpo de torpedo, frente plana, ala larga y a
 cola corta. Mismo presupuesto que el ave base (~210 triángulos por ave).
 
 ![Planes paloma y gaviota: antes y después](registro/img/aves_planes_paloma_gaviota.jpg)
+
+### Planes propios: pingüino y flamenco (y cuello en S)
+
+Con las referencias de Zoo Tycoon 2 (pingüino emperador de 1.154 triángulos y flamenco de 1.027).
+**Pingüino:** cuerpo de huso erguido, más ancho abajo; cabeza que se funde con el cuerpo; aletas planas y
+angostas; cola mínima bajo el cuerpo. **Flamenco:** cuerpo chico y ovalado, ala plegada en punta. Además,
+el cuello de flamenco, cisne y garza pasa de un cilindro recto a un **tubo curvo en S**.
+
+![Planes pingüino, flamenco, cisne y garza: antes y después](registro/img/aves_planes_pinguino_flamenco.jpg)
 
 ### Metropolitana
 
