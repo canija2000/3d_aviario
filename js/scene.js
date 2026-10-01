@@ -6,7 +6,7 @@ import { propFactor, MAX_RELIEF } from './scale.js';
 
 export const WORLD = 64; // metros por lado de cada escena (1 unidad = 1 m, ver js/scale.js)
 
-const COVER_RGB = [
+export const COVER_RGB = [
   [[52, 84, 36], [74, 104, 44]], // árboles
   [[96, 100, 52], [120, 104, 64]], // matorral
   [[132, 136, 64], [150, 146, 80]], // pastizal
