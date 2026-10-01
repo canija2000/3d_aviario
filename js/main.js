@@ -254,7 +254,7 @@ async function enterHub() {
   $('hud').hidden = true;
   await fade(false);
   const open = G.index.regions.filter(r => r.terrainFile).map(r => `<b>${r.name}</b>`);
-  toast(`Camina con las <b>flechas</b> hasta un portal (WASD mueve la cámara) o abre el <b>mapa</b> (M) para viajar. Se puede entrar a ${open.join(', ')}.`, 7);
+  toast(`Camina con las <b>flechas</b> (espacio para correr) hasta un portal (WASD mueve la cámara) o abre el <b>mapa</b> (M) para viajar. Se puede entrar a ${open.join(', ')}.`, 7);
 }
 
 function portalClicked(p) {
@@ -562,6 +562,7 @@ function driveFromKeys() {
   if (G.dialogOpen) closeDialog();
   const fx = -Math.cos(G.cam.yaw), fz = Math.sin(G.cam.yaw); // hacia donde mira la cámara
   (poroto.drive ||= new THREE.Vector2()).set(fx * f - fz * r, fz * f + fx * r);
+  poroto.run = keys.has(' '); // espacio: correr
 }
 // Después de mover: no salirse del camino ni de la escena, y entrar a portales y senderos caminando.
 function afterDrive() {
@@ -614,8 +615,8 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeDialog(); $('panel').hidden = true; if (!$('travel').hidden) closeTravelMap(); }
   if ((e.key === 'm' || e.key === 'M') && $('travel').hidden) openTravelMap();
   if ((e.key === 'n' || e.key === 'N') && G.mode === 'scene') toggleNames();
-  if (['q', 'e', 'w', 'a', 's', 'd', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(e.key.toLowerCase())) {
-    if (e.key.startsWith('Arrow')) e.preventDefault();
+  if (['q', 'e', 'w', 'a', 's', 'd', ' ', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(e.key.toLowerCase())) {
+    if (e.key.startsWith('Arrow') || e.key === ' ') e.preventDefault();
     keys.add(e.key.toLowerCase());
   }
 });

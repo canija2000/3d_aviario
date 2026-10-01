@@ -318,10 +318,10 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20, austra
 
   // ---- agua: mar o lago con oleaje suave (celdas de agua a nivel del mar) ----
   const seaY = data.hMin <= 0 ? (0 - data.hMin) * hScale + 0.05 : null;
-  let water = null;
+  let water = null, wmat = null;
   if (seaY !== null) {
     const wtex = makeTex(32, 32, (x, y) => ((x + y * 3) % 11 === 0 || (x * 5 + y) % 17 === 0) ? vary([150, 190, 220], 8) : vary([40, 86, 140], 8));
-    const wmat = mat(wtex, { rx: 10, ry: 10 });
+    wmat = mat(wtex, { rx: 10, ry: 10 });
     water = new THREE.Mesh(new THREE.PlaneGeometry(WORLD * 1.6, WORLD * 1.6, 24, 24).rotateX(-Math.PI / 2), wmat);
     water.position.y = seaY;
     root.add(water);
@@ -332,10 +332,44 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20, austra
     const y = heightAt(x, z);
     if (Math.hypot(x, z) < half * 0.65) waterSpots.push(new THREE.Vector3(x, seaY !== null ? Math.max(seaY, y) : y + 0.05, z));
   }
-  // oleaje: el plano sube y baja, y sus vértices ondulan (el temblor PS1 hace el resto)
+  // ríos, canales y lagos: superficie de agua propia sobre el cauce (antes solo pintados en el suelo),
+  // con una textura de corriente que se desplaza. Se omite donde ya está el mar.
+  const flowTex = makeTex(32, 32, (x, y) => ((x * 3 + y) % 13 === 0 || (x + y * 5) % 19 === 0) ? vary([170, 205, 230], 8)
+    : (y % 8 === 0 ? vary([70, 118, 168], 6) : vary([50, 92, 146], 6)));
+  const flowMat = mat(flowTex, { rx: 1, ry: 1 });
+  const fpos = [], fuv = [];
+  const sub = cell / K, lift = 0.07;
+  const addQuad = (x0, z0, x1, z1) => {
+    const ys = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]].map(([x, z]) => heightAt(x, z));
+    if (seaY !== null && Math.max(...ys) < seaY + 0.05) return; // bajo el mar
+    const v = [[x0, ys[0], z0], [x1, ys[1], z0], [x1, ys[2], z1], [x0, ys[3], z1]];
+    for (const i of [0, 3, 1, 1, 3, 2]) { fpos.push(v[i][0], v[i][1] + lift, v[i][2]); fuv.push(v[i][0] * 0.3, v[i][2] * 0.3); }
+  };
+  for (const key of riv.keys()) {
+    const [x, y] = key.split(',').map(Number);
+    if (x < 0 || y < 0 || x >= n * K || y >= n * K) continue;
+    addQuad(x * sub - half, y * sub - half, (x + 1) * sub - half, (y + 1) * sub - half);
+  }
+  for (let i = 0; i < n * n; i++) if (cover[i] === 7) {
+    const q = i % n, r = i / n | 0;
+    addQuad(q * cell - half, r * cell - half, (q + 1) * cell - half, (r + 1) * cell - half);
+  }
+  let flow = null;
+  if (fpos.length) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(fpos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(fuv, 2));
+    g.computeVertexNormals();
+    flow = new THREE.Mesh(g, flowMat); flow.renderOrder = 1;
+    root.add(flow);
+  }
+
+  // oleaje: el plano sube y baja, y sus vértices ondulan; la textura del mar y de los ríos corre
   const wpos = water?.geometry.attributes.position;
   function animate(t) {
+    if (flow) flowMat.uniforms.uOffset.value.set(t * 0.12, t * 0.05);
     if (!water) return;
+    wmat.uniforms.uOffset.value.set(Math.sin(t * 0.25) * 0.15, t * 0.02);
     water.position.y = seaY + Math.sin(t * 0.8) * 0.06;
     for (let i = 0; i < wpos.count; i++) wpos.setY(i, Math.sin(t * 1.3 + wpos.getX(i) * 0.35) * 0.08 + Math.cos(t * 0.9 + wpos.getZ(i) * 0.3) * 0.06);
     wpos.needsUpdate = true;
