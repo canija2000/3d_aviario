@@ -10,7 +10,8 @@ import { KIT } from './kit.js';
 // Piezas N64 modeladas en Blender (blender/aves_build.py → models/kit/ave_partes.glb). Están en el mismo
 // espacio que las primitivas de antes; si no cargaron, se usan las primitivas.
 // Juego de piezas propio por plan (paloma, gaviota); el resto usa las del ave base.
-const PART_SET = { paloma: 'paloma', gaviota: 'gaviota', pinguino: 'pinguino', flamenco: 'flamenco' };
+const PART_SET = { paloma: 'paloma', gaviota: 'gaviota', pinguino: 'pinguino', flamenco: 'flamenco', pato: 'pato', cisne: 'pato',
+  pelicano: 'pelicano', cormoran: 'pelicano', rapaz: 'rapaz', picaflor: 'picaflor', playero: 'playero', garza: 'playero' };
 const S_NECK = new Set(['flamenco', 'cisne', 'garza']);
 function part(name, fallback, plan) {
   const meshes = KIT.ave_partes?.meshes || [];

@@ -59,12 +59,15 @@ Una malla base por plan; la especie cambia paleta (textura), proporciones (pico,
 | `pinguino` ✔ | pingüinos | ~180 | Zoo Tycoon 2 Emperor Penguin (1154) y cría (780) |
 | `flamenco` ✔ | flamencos (cuello en S, también cisne y garza) | ~230 | Zoo Tycoon 2 Greater Flamingo (1027) |
 | `garza` | garzas | 120–180 | Secretary Bird (940, patas y cuello) |
-| `pato`, `cisne` | patos, cisnes (Anatidae 43) | 100–160 | — (falta) |
-| `playero` | playeros, chorlos, queltehue (Scolopacidae 34, Charadriidae 13) | 80–120 | — (falta) |
-| `rapaz` | aguilucho, tiuque, cernícalo, búhos (Accipitridae 15, Falconidae 7, Strigidae 7) | 120–180 | — (falta: Kaepora Gaebora de OoT sirve) |
-| `pelicano`, `cormoran` | pelícano, yeco | 120–180 | — (falta) |
-| `picaflor` | picaflores (Trochilidae 10) | 60–100 | — (falta) |
+| `pato`, `cisne` ✔ | patos, cisnes (Anatidae 43) | ~210 | Poly Pizza: pato, ganso (CC-BY) |
+| `playero` ✔ | playeros, chorlos, queltehue (Scolopacidae 34, Charadriidae 13) | ~210 | Poly Pizza: perrito (CC-BY) |
+| `rapaz` ✔ | aguilucho, tiuque, cernícalo, búhos (Accipitridae 15, Falconidae 7, Strigidae 7) | 120–180 | Poly Pizza: búho, lechuza, águila pescadora, jote (CC-BY) |
+| `pelicano`, `cormoran` ✔ | pelícano, yeco | ~210 | Poly Pizza: pelícano pardo y blanco (CC-BY) |
+| `picaflor` ✔ | picaflores (Trochilidae 10) | ~200 | Poly Pizza: picaflor (CC-BY) |
 | `loro`, `carpintero`, `codorniz`, `nandu` | choroy, carpintero negro, codorniz, ñandú | 80–180 | — (falta) |
+
+Referencias de Poly Pizza (CC-BY 3.0) en `assets/referencias/aves/polypizza/` con `CREDITOS.md`; kits de Kenney
+(CC0) en `assets/referencias/kits/` (Nature Kit: rocas, palmeras, cactus; Fantasy Town Kit: casas).
 
 ## Qué conviene buscar
 

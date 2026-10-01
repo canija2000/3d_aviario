@@ -97,8 +97,8 @@ de cada especie. **Antes:** cuerpo, cabeza, ala y cola eran esferas y una caja. 
 modeladas en Blender (`blender/aves_build.py` → `models/kit/ave_partes.glb`): cuerpo en gota, cabeza con
 frente, ala plana con las primarias en punta y cola en abanico, en el mismo espacio que las primitivas
 (se conservan pivotes, animaciones y pintura por especie). Patas con pie plano de 4 triángulos.
-~220 triángulos por ave (antes 188). Paloma, gaviota, pingüino y flamenco tienen piezas propias (abajo); los demás planes usan las del
-ave base hasta tener las suyas.
+~220 triángulos por ave (antes 188). Hay piezas propias para paloma, gaviota, pingüino, flamenco, pato, pelícano, rapaz, picaflor y
+playero (abajo); loro, carpintero, codorniz y ñandú siguen con las del ave base.
 
 ### Planes propios: paloma y gaviota
 
@@ -118,6 +118,17 @@ angostas; cola mínima bajo el cuerpo. **Flamenco:** cuerpo chico y ovalado, ala
 el cuello de flamenco, cisne y garza pasa de un cilindro recto a un **tubo curvo en S**.
 
 ![Planes pingüino, flamenco, cisne y garza: antes y después](registro/img/aves_planes_pinguino_flamenco.jpg)
+
+### Planes propios: pato, pelícano, rapaz, picaflor y playero
+
+Referencias: modelos low-poly de [Poly Pizza](https://poly.pizza) (colección Poly by Google, CC-BY 3.0: pato,
+pelícano, búho, lechuza, águila pescadora, jote, picaflor, perrito y garzas). Las piezas se hicieron de cero
+tomando solo la silueta. **Pato** (también cisne): bote de vientre plano con la popa levantada. **Pelícano**
+(también cormorán): cuerpo pesado y profundo. **Rapaz** (aguiluchos, halcones, búhos, jotes, cóndor): hombros
+anchos, cuña hacia la cola, cara chata y primarias separadas como dedos. **Picaflor:** cuerpo fino y alas
+en hoz. **Playero** (también garza): esbelto y horizontal, ala larga en punta.
+
+![Planes pato, pelícano, rapaz, picaflor y playero: antes y después](registro/img/aves_planes_pato_rapaz_picaflor_playero.jpg)
 
 ### Metropolitana
 

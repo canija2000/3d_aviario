@@ -140,8 +140,62 @@ flat_part('flamenco_ala', [(0.65, 0.05), (0.4, 0.3), (-0.3, 0.34), (-0.9, 0.2), 
                            (-0.95, -0.14), (-0.3, -0.26), (0.35, -0.18)], curve=0.06)
 flat_part('flamenco_cola', [(0.0, 0.14), (-1.0, 0.2), (-1.0, -0.2), (0.0, -0.14)], thick=0.04)
 
+def flat_bottom(bm, zmin):
+    for v in bm.verts: v.co.z = max(v.co.z, zmin)
+    return bm
+
+
+# Referencias de estos planes: modelos low-poly de Poly Pizza (Poly by Google, CC-BY 3.0; ver
+# assets/referencias/aves/polypizza/CREDITOS.md). Las piezas se hacen de cero; solo se toma la silueta.
+
+# ---------- pato (patos, taguas, zambullidores): bote de vientre plano, popa levantada, cola corta hacia arriba ----------
+link('pato_cuerpo', flat_bottom(lathe_x([(-1.4, 0), (-1.15, 0.42), (-0.6, 0.8), (0.0, 0.95), (0.55, 0.92), (0.9, 0.62), (1.08, 0)],
+                                        8, ry=1.0, rz=0.9, zoff=lambda x: 0.28 * max(0.0, -x - 0.35), rot=math.pi / 8), -0.6), m_gris)
+link('pato_cabeza', lathe_x([(-0.95, 0), (-0.7, 0.7), (-0.15, 0.97), (0.4, 0.9), (0.8, 0.55), (1.0, 0)],
+                           7, ry=0.86, rz=0.95, rot=math.pi / 2), m_gris)
+flat_part('pato_ala', [(0.65, 0.05), (0.42, 0.3), (-0.2, 0.34), (-0.9, 0.22), (-1.35, 0.05),
+                       (-1.0, -0.12), (-0.3, -0.24), (0.35, -0.16)], curve=0.06)
+flat_part('pato_cola', [(0.0, 0.14), (-1.0, 0.1), (-1.05, 0.0), (-1.0, -0.1), (0.0, -0.14)], thick=0.05)
+
+# ---------- pelícano: cuerpo pesado y profundo, cabeza alargada (el pico con bolsa lo hace bird.js) ----------
+link('pelicano_cuerpo', lathe_x([(-1.35, 0), (-1.1, 0.45), (-0.55, 0.88), (0.05, 1.04), (0.6, 1.0), (0.95, 0.68), (1.12, 0)],
+                               8, ry=0.95, rz=1.05, zoff=lambda x: 0.12 * max(0.0, -x - 0.4), rot=math.pi / 8), m_gris)
+link('pelicano_cabeza', lathe_x([(-0.95, 0), (-0.72, 0.62), (-0.2, 0.88), (0.45, 0.8), (0.88, 0.48), (1.08, 0)],
+                               7, ry=0.8, rz=0.88, rot=math.pi / 2), m_gris)
+flat_part('pelicano_ala', [(0.65, 0.06), (0.4, 0.36), (-0.3, 0.42), (-0.95, 0.3), (-1.35, 0.06),
+                           (-1.05, -0.16), (-0.35, -0.3), (0.35, -0.2)], curve=0.08)
+flat_part('pelicano_cola', [(0.0, 0.15), (-1.0, 0.2), (-1.0, -0.2), (0.0, -0.15)], thick=0.05)
+
+# ---------- rapaz (aguiluchos, halcones, búhos, jotes, cóndor): hombros anchos, cuña hacia la cola, cara chata ----------
+link('rapaz_cuerpo', lathe_x([(-1.42, 0), (-1.12, 0.36), (-0.5, 0.76), (0.1, 1.0), (0.6, 1.02), (0.96, 0.72), (1.12, 0)],
+                            8, ry=1.02, rz=0.98, rot=math.pi / 8), m_gris)
+link('rapaz_cabeza', lathe_x([(-0.95, 0), (-0.7, 0.76), (-0.15, 1.0), (0.42, 0.98), (0.76, 0.8), (0.86, 0)],
+                            7, ry=0.95, rz=0.95, rot=math.pi / 2), m_gris)   # frente roma: cara chata
+# ala ancha con las primarias separadas como "dedos"
+flat_part('rapaz_ala', [(0.65, 0.06), (0.42, 0.4), (-0.3, 0.45), (-0.95, 0.34), (-1.35, 0.2), (-1.12, 0.1), (-1.32, 0.02),
+                        (-1.1, -0.06), (-1.26, -0.16), (-1.0, -0.2), (-0.45, -0.32), (0.3, -0.24)], curve=0.08)
+flat_part('rapaz_cola', [(0.0, 0.17), (-1.0, 0.24), (-1.04, 0.0), (-1.0, -0.24), (0.0, -0.17)], thick=0.05)
+
+# ---------- picaflor: cuerpo fino, alas angostas en hoz, cola corta ----------
+link('picaflor_cuerpo', lathe_x([(-1.3, 0), (-1.02, 0.32), (-0.42, 0.76), (0.2, 0.95), (0.7, 0.75), (1.0, 0)],
+                               8, ry=0.86, rz=0.92, rot=math.pi / 8), m_gris)
+link('picaflor_cabeza', lathe_x([(-0.95, 0), (-0.7, 0.72), (-0.15, 0.98), (0.4, 0.92), (0.8, 0.56), (1.0, 0)],
+                               7, ry=0.9, rz=0.95, rot=math.pi / 2), m_gris)
+flat_part('picaflor_ala', [(0.65, 0.04), (0.3, 0.22), (-0.3, 0.26), (-0.9, 0.2), (-1.35, 0.1),
+                           (-1.0, 0.0), (-0.4, -0.08), (0.3, -0.1)], curve=0.03)
+flat_part('picaflor_cola', [(0.0, 0.12), (-1.0, 0.22), (-0.85, 0.0), (-1.0, -0.22), (0.0, -0.12)], thick=0.04)
+
+# ---------- playero (playeros, chorlos, perritos, queltehue): esbelto y horizontal, ala larga en punta ----------
+link('playero_cuerpo', lathe_x([(-1.38, 0), (-1.1, 0.34), (-0.55, 0.74), (0.05, 0.93), (0.58, 0.9), (0.94, 0.62), (1.1, 0)],
+                              8, ry=0.88, rz=0.92, rot=math.pi / 8), m_gris)
+link('playero_cabeza', lathe_x([(-0.95, 0), (-0.7, 0.7), (-0.15, 0.97), (0.4, 0.9), (0.8, 0.55), (1.0, 0)],
+                              7, ry=0.88, rz=0.93, rot=math.pi / 2), m_gris)
+flat_part('playero_ala', [(0.65, 0.04), (0.4, 0.28), (-0.2, 0.32), (-0.85, 0.2), (-1.35, 0.02),
+                          (-0.9, -0.1), (-0.3, -0.22), (0.3, -0.16)], curve=0.05)
+flat_part('playero_cola', [(0.0, 0.13), (-1.0, 0.18), (-1.0, -0.18), (0.0, -0.13)], thick=0.045)
+
 # vista ordenada en la escena: una fila por juego de piezas
-for row, pre in enumerate(('ave', 'paloma', 'gaviota', 'pinguino', 'flamenco')):
+for row, pre in enumerate(('ave', 'paloma', 'gaviota', 'pinguino', 'flamenco', 'pato', 'pelicano', 'rapaz', 'picaflor', 'playero')):
     for i, n in enumerate(('cuerpo', 'cabeza', 'ala', 'cola')):
         bpy.data.objects[f'{pre}_{n}'].location = (i * 3.2, row * 3.0, 0)
 
