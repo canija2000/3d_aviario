@@ -143,6 +143,18 @@ function useKit(kinds, m) {
       calafate: bush([72, 100, 52]), hierba_blanca: bush([150, 150, 110]) });
   }
   if (has('pasto')) kinds.coiron = { parts: parts('pasto', [170, 160, 80], false) };
+  // piezas con geometría de Kenney (CC0) re-texturizada: ya vienen a su altura real (perch ≈ altura)
+  const piece = (id, rgb, extra = {}) => has(id) && Object.assign(kinds, { [id]: { ...kinds[id], parts: parts(id, rgb), variants: undefined, ...extra } });
+  piece('palma_chilena', [70, 100, 50], { perch: 8.5 });
+  piece('quisco', [80, 110, 70], { perch: 2.1 });
+  piece('eucalipto', [96, 128, 104], { perch: 14.0 });
+  piece('sauce_chileno', [96, 132, 64], { perch: 7.6 });
+  piece('lenga', [70, 110, 52], { perch: 10.5 });   // conserva deciduous/autumn/trunkH del catálogo
+  piece('nirre', [96, 124, 60], { perch: 3.8 });
+  piece('tronco_caido', [0, 0, 0], { perch: 0.75 });
+  piece('flores_altura', [90, 130, 60]);
+  piece('chagual', [130, 150, 110], { perch: 2.8 });
+  piece('totora', [80, 120, 50]);
   if (has('roca')) {
     const rock = (rgb, snowable = false) => ({ perch: 0.9,
       variants: KIT.roca.variants.map(v => v.map(e => [e.geometry, m(e.map || plainTex, { tint: kitTint(rgb), snowable })])) });
