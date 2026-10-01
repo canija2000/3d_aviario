@@ -3,10 +3,11 @@
 /* global THREE */
 import { mat, makeTex, makeVary, mulberry32, texPlain } from './ps1.js';
 import { propFactor, MAX_RELIEF } from './scale.js';
+import { KIT } from './kit.js';
 
 export const WORLD = 64; // metros por lado de cada escena (1 unidad = 1 m, ver js/scale.js)
 
-const COVER_RGB = [
+export const COVER_RGB = [
   [[52, 84, 36], [74, 104, 44]], // árboles
   [[96, 100, 52], [120, 104, 64]], // matorral
   [[132, 136, 64], [150, 146, 80]], // pastizal
@@ -66,7 +67,7 @@ function propKinds(R) {
     const g2 = g.clone().rotateY(Math.PI / 2);
     return [[g, m(t, { alpha: 1, twoSided: true })], [g2, m(t, { alpha: 1, twoSided: true })]];
   };
-  return {
+  const kinds = {
     platano_oriental: { parts: [trunk(3.2, 0.22), blob(1.9, 3.8, 0.8, [80, 116, 48])], perch: 4.9, deciduous: true },
     palma_chilena: { parts: [trunk(4.5, 0.3), [new THREE.ConeGeometry(1.6, 0.9, 7, 1, true).translate(0, 4.6, 0), m(leaf([70, 100, 50]), { twoSided: true })]], perch: 4.9 },
     pimiento: { parts: [trunk(2, 0.2), blob(1.5, 2.6, 0.9, [96, 124, 64])], perch: 3.6 },
@@ -114,6 +115,40 @@ function propKinds(R) {
     muelle: { parts: [[new THREE.BoxGeometry(1.2, 0.12, 4).translate(0, 0.9, 0), m(signTex)],
       ...[-1.6, 0, 1.6].flatMap(z => [-0.5, 0.5].map(x => [new THREE.CylinderGeometry(0.08, 0.08, 1.8, 4).translate(x, 0, z), m(bark)]))], perch: 1.0 },
   };
+  useKit(kinds, m);
+  return kinds;
+}
+
+// Piezas modeladas en Blender (js/kit.js): reemplazan a las formas procedurales cuando están cargadas.
+// Las texturas del kit son grises (≈170): el tinte de cada especie da su color.
+const kitTint = rgb => new THREE.Color(rgb[0] / 170, rgb[1] / 170, rgb[2] / 170);
+function useKit(kinds, m) {
+  const parts = (id, rgb, snowable = true) => (KIT[id]?.meshes || []).map(e => {
+    const leafy = /copa|borde|pasto/.test(e.material);
+    return [e.geometry, m(e.map || plainTex, { tint: leafy ? kitTint(rgb) : 0xffffff, alpha: e.alpha ? 1 : 0, twoSided: e.alpha, snowable: leafy && snowable }),
+      /copa|borde/.test(e.material) ? 'crown' : undefined];
+  });
+  const has = id => !!KIT[id];
+  if (has('arbol_copa')) {
+    const tree = (rgb, extra = {}) => ({ parts: parts('arbol_copa', rgb), perch: 6.3, ...extra });
+    Object.assign(kinds, {
+      quillay: tree([58, 86, 44]), peumo: tree([44, 76, 40]), litre: tree([72, 92, 40]), pimiento: tree([96, 124, 64]),
+      platano_oriental: tree([80, 116, 48], { deciduous: true }), maiten: tree([84, 112, 56]),
+    });
+  }
+  if (has('espino')) kinds.espino = { parts: parts('espino', [104, 108, 52]), perch: 3.2 };
+  if (has('arbusto')) {
+    const bush = rgb => ({ parts: parts('arbusto', rgb), perch: 1.2 });
+    Object.assign(kinds, { boldo: bush([70, 96, 52]), zarzamora: bush([64, 88, 44]), mata_negra: bush([40, 58, 36]),
+      calafate: bush([72, 100, 52]), hierba_blanca: bush([150, 150, 110]) });
+  }
+  if (has('pasto')) kinds.coiron = { parts: parts('pasto', [170, 160, 80], false) };
+  if (has('roca')) {
+    const rock = (rgb, snowable = false) => ({ perch: 0.9,
+      variants: KIT.roca.variants.map(v => v.map(e => [e.geometry, m(e.map || plainTex, { tint: kitTint(rgb), snowable })])) });
+    Object.assign(kinds, { roca: rock([150, 146, 136], true), roca_cerro: rock([146, 134, 120], true), bolones: rock([156, 150, 140]),
+      roca_andina: rock([132, 128, 122], true), roca_costa: rock([84, 80, 82]) });
+  }
 }
 
 // Densidad por celda (probabilidad) según el tipo de prop del catálogo.

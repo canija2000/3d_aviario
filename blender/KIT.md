@@ -9,6 +9,12 @@ las variantes salen de recolorear o escalar la misma malla. Medidas en metros (v
 
 Referencias disponibles: `assets/referencias/` (índice en `assets/referencias/INDEX.md`, solo local).
 
+## Estado
+
+- **Hecho** (`blender/kit_build.py` → `models/kit/`, cargado por `js/kit.js`): `roca` (3 formas, ~21 tris c/u),
+  `arbol_copa` (132), `espino` (129), `arbusto` (68), `pasto` (6). Texturas grises de 32×32; el juego tiñe cada especie.
+- Pendiente: el resto de la tabla (palma, eucalipto, sauce, lenga, cactus, casas…) y las aves, cuando haya referencias.
+
 ## Prioridad 1 — sirven en las 3 regiones jugables
 
 | id | qué es | dónde | alto | tris | cómo construirlo | referencia que tenemos |
