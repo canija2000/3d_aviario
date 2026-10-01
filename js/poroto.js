@@ -10,9 +10,7 @@ const vary = makeVary(R);
 const plain = texPlain();
 const MODEL = 'models/poroto.glb';
 const FACE_CLOSED = 'models/poroto_cara_cerrada.png';
-// El modelo está en metros (≈1 m). Mientras el mundo no pase a escala real (tabla de escala pendiente),
-// se agranda para calzar con el tamaño de antes (≈2,2 unidades).
-const SCALE = 2.1;
+const SCALE = 1; // el modelo viene en metros (≈1 m), igual que el mundo (js/scale.js)
 
 function loadGLTF(url) {
   return new Promise((resolve, reject) => new THREE.GLTFLoader().load(url, resolve, undefined, reject));
@@ -30,7 +28,7 @@ function toGameMaterials(scene) {
     const key = src.uuid;
     if (!cache.has(key)) {
       const map = src.map || plain;
-      if (src.map) { map.magFilter = map.minFilter = THREE.LinearFilter; map.generateMipmaps = false; } // bilineal, como el N64
+      if (src.map) { map.magFilter = THREE.LinearFilter; map.minFilter = THREE.LinearMipmapLinearFilter; } // bilineal + mipmaps, como el N64
       const tint = src.map ? 0xffffff : src.color.clone().convertLinearToSRGB();
       const m = mat(map, { tint, steady: true, perspective: true, vcol: o.geometry.attributes.color ? 0.45 : 0,
         twoSided: src.side === THREE.DoubleSide });
@@ -44,7 +42,7 @@ function toGameMaterials(scene) {
 export async function loadPoroto() {
   const [gltf, faceClosed] = await Promise.all([loadGLTF(MODEL), loadTexture(FACE_CLOSED)]);
   faceClosed.flipY = false; // misma convención que las texturas del glTF
-  faceClosed.magFilter = faceClosed.minFilter = THREE.LinearFilter; faceClosed.generateMipmaps = false;
+  faceClosed.magFilter = THREE.LinearFilter; faceClosed.minFilter = THREE.LinearMipmapLinearFilter;
   const model = gltf.scene;
   toGameMaterials(model);
   const N = name => model.getObjectByName(name);
@@ -75,14 +73,14 @@ export async function loadPoroto() {
     if (x > cx + 1.6) return vary([96, 140, 180], 6); // mar
     return vary([232, 216, 176], 6);
   });
-  const groundMap = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.2).rotateX(-Math.PI / 2), mat(mapTex, { twoSided: true }));
+  const groundMap = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.8).rotateX(-Math.PI / 2), mat(mapTex, { twoSided: true }));
   groundMap.visible = false;
   const shadowTex = makeTex(16, 16, (x, y) => [18, 22, 14, Math.hypot(x - 7.5, y - 7.5) < 7.5 ? 170 : 0]);
-  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.0).rotateX(-Math.PI / 2), mat(shadowTex, { alpha: 2 }));
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.6).rotateX(-Math.PI / 2), mat(shadowTex, { alpha: 2 }));
 
   steady(root);
   const P = {
-    root, shadow, pos: new THREE.Vector3(), heading: 0, target: null, speed: 3.2,
+    root, shadow, pos: new THREE.Vector3(), heading: 0, target: null, speed: 2.6,
     state: 'idle', t: 0, idleFor: 0, look: null, binoc: 0, writing: 0, sneeze: 0, fan: 0,
     season: 'verano', featherTarget: null, onArrive: null, blinkT: 3,
   };
@@ -93,7 +91,7 @@ export async function loadPoroto() {
   // Viaje: deja el mapa en el suelo, salta encima y se "absorbe" en espiral. onDone al terminar.
   P.startTravel = (heightAt, onDone) => {
     const dir = new THREE.Vector3(Math.cos(P.heading), 0, -Math.sin(P.heading));
-    const to = P.pos.clone().addScaledVector(dir, 1.5);
+    const to = P.pos.clone().addScaledVector(dir, 1.0);
     to.y = heightAt(to.x, to.z);
     root.parent?.add(groundMap);
     groundMap.position.set(to.x, to.y + 0.05, to.z); groundMap.rotation.y = P.heading; groundMap.scale.setScalar(0.01);
@@ -202,7 +200,7 @@ export async function loadPoroto() {
     } else if (t < 1.1) { // salto
       const k = (t - 0.5) / 0.6;
       const p = T.from.clone().lerp(T.to, k);
-      root.position.set(p.x, THREE.MathUtils.lerp(T.from.y, hy, k) + Math.sin(Math.PI * k) * 1.6, p.z);
+      root.position.set(p.x, THREE.MathUtils.lerp(T.from.y, hy, k) + Math.sin(Math.PI * k) * 0.9, p.z);
       body.scale.setScalar(1);
     } else if (t < 2.0) { // se absorbe en espiral
       const k = (t - 1.1) / 0.9;

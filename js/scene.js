@@ -2,9 +2,9 @@
 // ESA WorldCover, ríos OSM), vegetación según props-<CODE>.json y senderos hacia los otros cuartos.
 /* global THREE */
 import { mat, makeTex, makeVary, mulberry32, texPlain } from './ps1.js';
+import { propFactor, MAX_RELIEF } from './scale.js';
 
-export const WORLD = 64; // unidades de mundo por lado (48 celdas)
-const MAX_RELIEF = 15; // unidades: exageración vertical acotada para que el diorama sea caminable
+export const WORLD = 64; // metros por lado de cada escena (1 unidad = 1 m, ver js/scale.js)
 
 const COVER_RGB = [
   [[52, 84, 36], [74, 104, 44]], // árboles
@@ -117,7 +117,8 @@ function propKinds(R) {
 }
 
 // Densidad por celda (probabilidad) según el tipo de prop del catálogo.
-const DENSITY = { arbol: 0.12, arbusto: 0.2, cactus: 0.05, roca: 0.05, junco: 0.3, pasto: 0.25, cojin: 0.08, flor: 0.06, objeto: 0.015, edificio: 0.18 };
+// (a escala real los árboles y casas ocupan más celdas, por eso son menos densos que antes)
+const DENSITY = { arbol: 0.05, arbusto: 0.14, cactus: 0.05, roca: 0.05, junco: 0.3, pasto: 0.25, cojin: 0.08, flor: 0.06, objeto: 0.015, edificio: 0.05 };
 // Legibilidad del diorama (aplica a todas las escenas y regiones futuras):
 // - SCENE_DENSITY escala la densidad total por escena (1 = lo que dice la cobertura real).
 // - Claro central: dentro de CLEAR_R la densidad cae a CLEAR_MIN y sube suave hasta CLEAR_R2.
@@ -167,7 +168,7 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20, austra
     if (onPath(wx, wz, 0.7) || Math.hypot(wx, wz) < 1.6) return vary(R() < 0.2 ? [150, 128, 92] : [172, 148, 108], 8); // sendero
     const c = cover[(y / K | 0) * n + (x / K | 0)];
     const pal = COVER_RGB[c] || COVER_RGB[5];
-    if (c === 4 && (x % 8 === 0 || y % 8 === 0)) return vary([72, 70, 70], 4); // calles
+    if (c === 4 && (x % 16 === 0 || y % 16 === 0)) return vary([72, 70, 70], 4); // calles (cada ~5 m)
     if (c === 3 && x % 3 === 0) return vary([110, 100, 50], 6); // surcos
     return vary(R() < 0.3 ? pal[1] : pal[0], 10);
   });
@@ -175,7 +176,13 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20, austra
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) pos.setY(i, H[i]);
   geo.computeVertexNormals();
-  const groundMat = mat(tex, { snowable: true });
+  // grano del suelo: patrón gris de 32×32 (≈2 m) que se repite sobre el color de la cobertura, como en N64
+  const detail = makeTex(32, 32, (x, y) => {
+    const blade = (x * 7 + y * 3) % 11 === 0 || (x * 3 + y * 5) % 13 === 0;
+    const g = 128 + (R() - 0.5) * 34 + (blade ? -26 : 0) + ((x >> 3) + (y >> 3)) % 2 * 6;
+    return [g, g, g];
+  });
+  const groundMat = mat(tex, { snowable: true, detail, detailRep: WORLD / 2, detailAmt: 0.7 });
   const ground = new THREE.Mesh(geo, groundMat);
   root.add(ground);
   const half = WORLD / 2;
@@ -202,7 +209,9 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20, austra
   const catalog = (props?.[key] || []).filter(p => kinds[p.id]);
   if (key === 'ciudad' && !catalog.some(p => p.tipo === 'edificio')) catalog.push({ id: 'edificio', tipo: 'edificio', cover: [4] });
   const instances = new Map(); // id → [matrix]
-  const place = (id, x, z, s, rot) => {
+  const place = (id, x, z, s0, rot) => {
+    const f = propFactor(id, kinds[id]);
+    const s = typeof s0 === 'number' ? s0 * f : { x: s0.x * f, y: s0.y * f, z: s0.z * f };
     const y = heightAt(x, z);
     const mtx = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z),
       new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rot), new THREE.Vector3(s.x ?? s, s.y ?? s, s.z ?? s));
