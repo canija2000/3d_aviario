@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Poroto original (primitivas PS1)</title>
+<!-- Dibuja el Poroto original (js/poroto.js antes del modelo N64, archivado en antes/poroto_ps1.js)
+     en 4 vistas para docs/registro_modelos.md. -->
+<style>
+  body { margin: 0; background: #9cc0d8; }
+  #g { display: grid; grid-template-columns: repeat(2, 380px); }
+  canvas { width: 380px; height: 380px; display: block; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+<div id="g"></div>
+<script type="module">
+import { shared } from '../../js/ps1.js';
+import { buildPoroto } from './antes/poroto_ps1.js';
+const P = buildPoroto();
+P.season = 'primavera';
+P.update(0.016, () => 0);
+const sc = new THREE.Scene(); sc.add(P.root);
+const S = 380;
+const r = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
+r.setPixelRatio(1); r.setSize(S, S, false); r.setClearColor(0x9cc0d8);
+// frente del Poroto original = +X
+for (const [x, y, z] of [[5, 2.2, 3], [5, 2.2, -3], [0, 1.6, -6], [-5, 2.4, -3]]) {
+  const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 100); cam.position.set(x, y, z); cam.lookAt(0, 1.1, 0); cam.updateMatrixWorld();
+  shared.uLightDir.value.set(0.45, 1, 0.35).normalize().transformDirection(cam.matrixWorldInverse);
+  r.render(sc, cam);
+  const c = document.createElement('canvas'); c.width = c.height = S; c.getContext('2d').drawImage(r.domElement, 0, 0);
+  document.getElementById('g').appendChild(c);
+}
+document.title = 'listo';
+</script>
+</body>
+</html>

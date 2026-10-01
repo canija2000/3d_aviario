@@ -70,3 +70,22 @@ Cómo trabajamos los modelos del Aviario 3D y qué aprendimos. Estilo objetivo: 
   https://github.com/Fast-64/fast64
 - Qué hace bien y mal el MCP de Blender (bloqueos y low poly sí; topología de producción no):
   https://www.strayspark.studio/blog/blender-mcp-ai-assisted-3d-modeling-step-by-step-2026
+
+## Aves: de ensamble a una sola pieza (acordado y hecho el 2026-10-01: js/bird1.js, todos los planes)
+
+Diagnóstico (medido en Blender sobre las referencias): las aves de Poly Pizza y Half-Life 2 son **1 malla
+continua con 1 textura**; las nuestras (PR #10) son ~12 piezas con 5–6 materiales: cabeza = otra esfera
+encajada (pliegue y silueta de muñeco de nieve), pico = cono pegado, alas y cola = placas que sobresalen.
+Mejorar las piezas sin cambiar la construcción no alcanza (mismo error que Poroto v1–v5).
+
+Plan (igual que Poroto N64):
+1. Una malla por especie generada en JS: loft desde la punta de la cola → cuerpo → cuello → cabeza → pico,
+   secciones de 6–8 lados con ancho/alto por anillo según el plan; cabeza y cuello = anillos del mismo loft;
+   pico = punta del loft (mandíbula inferior aparte, chica, para cantar).
+2. Proporciones por especie desde AVONET (pico, cola, tarso) como hoy.
+3. Una textura de 64×64 por especie pintada sobre esa malla: ojo, máscara, garganta y ala plegada pintados.
+4. Animación sin cortar la pieza: cabeza y cola mueven solo sus vértices (pesos con mezcla en el cuello).
+5. Alas: plegadas = pintadas en la textura; en vuelo aparecen planos de ala (solo al volar). Patas aparte.
+6. ~120–180 triángulos por ave, sombra horneada (colores por vértice) como Poroto.
+Orden: prototipo del plan paseriforme (chincol, zorzal, loica, diuca) comparado en docs/registro/aves.html
+contra la versión actual; si se aprueba, extender a los otros planes con las siluetas ya estudiadas.

@@ -3,7 +3,7 @@
 // (cada especie = una pieza + color + tamaño), en vez de las formas procedurales de antes.
 /* global THREE */
 
-export const KIT_PIECES = ['roca', 'arbol_copa', 'espino', 'arbusto', 'pasto'];
+export const KIT_PIECES = ['roca', 'arbol_copa', 'espino', 'arbusto', 'pasto', 'ave_partes'];
 export const KIT = {}; // id → { meshes: [{ name, geometry, map, alpha }], variants?: [[...]] }
 
 function loadGLTF(url) {

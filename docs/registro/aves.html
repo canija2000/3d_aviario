@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Registro de aves: antes y después</title>
+<!-- Genera las hojas de docs/registro_modelos.md. Uso: abrir con ?region=CL-RM (o CL-VS, CL-MA) desde el
+     servidor de desarrollo, o capturar con Chrome headless (ver docs/registro_modelos.md). -->
+<style>
+  body { margin: 0; background: #10131c; color: #eef1f8; font: 14px "Atkinson Hyperlegible", system-ui, sans-serif; }
+  h1 { font: 600 20px system-ui; margin: 12px 16px 4px; }
+  p { margin: 0 16px 10px; color: #9aa3c4; }
+  table { border-collapse: collapse; margin: 0 12px 12px; }
+  th { font-weight: 600; text-align: center; padding: 4px; color: #f4d35e; }
+  td { padding: 3px; vertical-align: middle; }
+  td.n { width: 170px; padding-right: 8px; }
+  td.n b { display: block; }
+  td.n small { color: #9aa3c4; }
+  canvas { display: block; width: 180px; height: 180px; image-rendering: pixelated; border-radius: 4px; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+<h1 id="t"></h1>
+<p id="sub"></p>
+<table><thead><tr><th></th><th>PS1 · lado</th><th>por piezas · lado</th><th>una pieza · lado</th><th>una pieza · 3/4</th><th>una pieza · atrás</th></tr></thead><tbody id="rows"></tbody></table>
+<script type="module">
+import { shared } from '../../js/ps1.js';
+import { featuredIn } from '../../js/data.js';
+import { loadKit } from '../../js/kit.js';
+import { buildBird, planFor, setOnePiece } from '../../js/bird.js';
+import { buildBird as buildBirdAntes, planFor as planForAntes } from './antes/bird_ps1.js';
+
+const REGION_NAME = { 'CL-RM': 'Metropolitana', 'CL-VS': 'Valparaíso', 'CL-MA': 'Magallanes' };
+// ?region=CL-RM (o varias separadas por coma) · ?plan=paloma,gaviota filtra por plan de cuerpo · ?n=12
+const q = new URLSearchParams(location.search);
+const codes = (q.get('region') || 'CL-RM').split(',');
+const plans = q.get('plan')?.split(',');
+const max = +(q.get('n') || 12);
+const code = codes.join(' + ');
+const get = p => fetch(p).then(r => r.json());
+const [index, regions] = await Promise.all([get('../../data/game/index.json'), Promise.all(codes.map(c => get(`../../data/game/region-${c}.json`))), loadKit('../../models/kit/')]);
+index.byId = new Map(index.species.map(s => [s.id, s]));
+const ids = new Set();
+for (const region of regions) { featuredIn(index, region); Object.keys(region.featured || {}).forEach(id => ids.add(+id)); }
+const species = [...ids].map(id => index.byId.get(id)).filter(s => s?.palette && (!plans || plans.includes(planFor(s)))).slice(0, max);
+
+document.getElementById('t').textContent = `${plans ? 'Planes ' + plans.join(', ') : 'Aves de ' + codes.map(c => REGION_NAME[c] || c).join(', ')}: PS1 · por piezas (PR #10) · una sola pieza`;
+document.getElementById('sub').textContent = `${species.length} especies destacadas con su paleta aprobada · render con el shader del juego`;
+
+const S = 200;
+const r = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
+r.setPixelRatio(1); r.setSize(S, S, false); r.setClearColor(0x9cc0d8);
+const views = { lado: [0, 1.1, 7.2], tres: [4.2, 2.6, 6.2], atras: [-3.5, 4.2, 5.2] };
+
+function shot(build, sp, plan, view, idOffset) {
+  const m = build({ ...sp, id: sp.id + idOffset }, plan);
+  const sc = new THREE.Scene(); sc.add(m.group);
+  const box = new THREE.Box3().setFromObject(m.group); const c = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3()).length();
+  const cam = new THREE.PerspectiveCamera(30, 1, 0.05, 200);
+  const v = new THREE.Vector3(...views[view]).normalize().multiplyScalar(size * 2.1);
+  cam.position.copy(c).add(v); cam.lookAt(c); cam.updateMatrixWorld();
+  shared.uLightDir.value.set(0.45, 1, 0.35).normalize().transformDirection(cam.matrixWorldInverse);
+  r.render(sc, cam);
+  const out = document.createElement('canvas'); out.width = out.height = S;
+  out.getContext('2d').drawImage(r.domElement, 0, 0);
+  return out;
+}
+
+const tbody = document.getElementById('rows');
+for (const sp of species) {
+  const tr = document.createElement('tr');
+  const plan = planFor(sp);
+  tr.innerHTML = `<td class="n"><b>${sp.comName}</b><small><i>${sp.sciName}</i><br>plan: ${plan}</small></td>`;
+  setOnePiece(false);
+  const piezas = shot(buildBird, sp, plan, 'lado', 700000);
+  setOnePiece(true);
+  const cells = [shot(buildBirdAntes, sp, planForAntes(sp), 'lado', 500000), piezas, shot(buildBird, sp, plan, 'lado', 0),
+    shot(buildBird, sp, plan, 'tres', 0), shot(buildBird, sp, plan, 'atras', 0)];
+  for (const cv of cells) { const td = document.createElement('td'); td.appendChild(cv); tr.appendChild(td); }
+  tbody.appendChild(tr);
+}
+document.title = 'listo';
+</script>
+</body>
+</html>

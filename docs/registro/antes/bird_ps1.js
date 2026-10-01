@@ -4,41 +4,7 @@
 // - Colores: species.palette (RGB 5 bits por zona) + pattern (barred/streaked/spotted/striped).
 // - Plan corporal (postura): paseriforme, cola_alta (tapaculos, chercán), paloma, playero, picaflor.
 /* global THREE */
-import { mat, makeTex, makeVary, mulberry32, sideUV, texPlain, steady } from './ps1.js';
-import { KIT } from './kit.js';
-import { buildBirdOnePiece } from './bird1.js';
-
-// Planes que ya se construyen como una sola pieza (js/bird1.js). setOnePiece(false) vuelve al ave por piezas
-// (lo usa docs/registro/aves.html para comparar).
-const ONE_PIECE = new Set(['paseriforme', 'cola_alta', 'paloma', 'playero', 'picaflor', 'gaviota', 'pelicano', 'cormoran', 'garza',
-  'pato', 'rapaz', 'codorniz', 'nandu', 'pinguino', 'flamenco', 'cisne', 'loro', 'carpintero']);
-let onePieceOn = true;
-export function setOnePiece(on) { onePieceOn = on; }
-
-// Piezas N64 modeladas en Blender (blender/aves_build.py → models/kit/ave_partes.glb). Están en el mismo
-// espacio que las primitivas de antes; si no cargaron, se usan las primitivas.
-// Juego de piezas propio por plan (paloma, gaviota); el resto usa las del ave base.
-const PART_SET = { paloma: 'paloma', gaviota: 'gaviota', pinguino: 'pinguino', flamenco: 'flamenco', pato: 'pato', cisne: 'pato',
-  pelicano: 'pelicano', cormoran: 'pelicano', rapaz: 'rapaz', picaflor: 'picaflor', playero: 'playero', garza: 'playero' };
-const S_NECK = new Set(['flamenco', 'cisne', 'garza']);
-function part(name, fallback, plan) {
-  const meshes = KIT.ave_partes?.meshes || [];
-  const e = meshes.find(m => m.name === `${PART_SET[plan] || 'ave'}_${name}`) || meshes.find(m => m.name === `ave_${name}`);
-  if (!e) return fallback();
-  const g = e.geometry.clone();
-  if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
-  return g;
-}
-// Pie plano de tres dedos adelante y uno atrás (4 triángulos), en vez de cajas.
-const footGeo = (() => {
-  const t = [[0.4, 0.06], [0.36, 0.2], [0.36, -0.2]].flatMap(([x, z]) => [0, 0, -0.035, x, 0, z, 0, 0, 0.035]);
-  t.push(0, 0, 0.035, -0.22, 0, 0, 0, 0, -0.035);
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(t, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Array(t.length / 3 * 2).fill(0.5), 2));
-  g.computeVertexNormals();
-  return g;
-})();
+import { mat, makeTex, makeVary, mulberry32, sideUV, texPlain, steady } from '../../../js/ps1.js';
 
 const CHUCAO = { beak: 0.25, beakDepth: 0.29, tarsus: 0.52, tail: 0.94, hwi: 0.05 };
 const GRAY = { back: [120, 110, 100], back_dark: [80, 72, 64], belly: [180, 172, 160], flank: [150, 140, 128],
@@ -52,7 +18,7 @@ const GRAY = { back: [120, 110, 100], back_dark: [80, 72, 64], belly: [180, 172,
 export const PLANS = {
   paseriforme: { tilt: 0.42, tail: 0.35, head: 0.56, legs: 1.0, body: [1.1, 0.85, 0.8], neck: 0 },
   cola_alta: { tilt: 0.18, tail: -1.1, head: 0.56, legs: 1.0, body: [1.15, 0.85, 0.8], neck: 0 },
-  paloma: { tilt: 0.3, tail: 0.2, head: 0.42, legs: 0.7, body: [1.25, 0.9, 0.85], neck: 0.22, neckLen: 0.3, wing: 1.15 }, // pecho erguido y cuello corto
+  paloma: { tilt: 0.12, tail: 0.12, head: 0.42, legs: 0.7, body: [1.25, 0.9, 0.85], neck: 0.1 },
   playero: { tilt: 0.06, tail: 0.25, head: 0.5, legs: 2.1, body: [1.2, 0.8, 0.75], neck: 0.15 },
   picaflor: { tilt: 0.55, tail: 0.5, head: 0.52, legs: 0.35, body: [1.0, 0.62, 0.6], neck: 0 },
   gaviota: { tilt: 0.15, tail: 0.2, head: 0.5, legs: 0.85, body: [1.3, 0.8, 0.75], neck: 0.05, wing: 1.5, swim: true, soar: true },
@@ -64,7 +30,7 @@ export const PLANS = {
   codorniz: { tilt: 0.1, tail: 0.1, head: 0.55, legs: 0.7, body: [1.2, 0.95, 0.9], neck: 0.05, topknot: true },
   // Magallanes
   nandu: { tilt: 0.3, tail: 0.1, head: 0.4, legs: 3.0, body: [1.3, 1.1, 1.0], neck: 0.1, neckLen: 1.25, wing: 0.55, noFly: true, stride: 2.2 },
-  pinguino: { tilt: 1.35, tail: 1.0, tailPos: [-0.5, 0.12], head: 0.5, legs: 0.35, body: [1.2, 0.85, 0.8], neck: 0, wing: 0.8, swim: true, noFly: true, waddle: true, stride: 0.6 },
+  pinguino: { tilt: 1.35, tail: 0.1, head: 0.5, legs: 0.35, body: [1.2, 0.85, 0.8], neck: 0, wing: 0.8, swim: true, noFly: true, waddle: true, stride: 0.6 },
   flamenco: { tilt: 0.5, tail: 0.2, head: 0.35, legs: 3.0, body: [1.05, 0.7, 0.62], neck: 0.1, neckLen: 1.3, wing: 1.3, bentBill: true },
   cisne: { tilt: 0.05, tail: 0.15, head: 0.42, legs: 0.45, body: [1.5, 0.85, 1.0], neck: 0.1, neckLen: 1.2, wing: 1.3, bill: true, swim: true },
   loro: { tilt: 0.7, tail: 0.5, head: 0.6, legs: 0.7, body: [1.0, 0.85, 0.8], neck: 0, hookBill: true },
@@ -171,19 +137,6 @@ export function buildBird(sp, plan = 'paseriforme') {
   const fTail = clamp((pr[3] ?? CHUCAO.tail) / CHUCAO.tail, 0.4, 1.4);
   const hwi = pr[4] ?? CHUCAO.hwi;
   const T = speciesTextures(sp);
-  if (onePieceOn && ONE_PIECE.has(plan)) {
-    const legLen1 = 0.85 * fTarsus, hs1 = pl.head, nl1 = pl.neckLen ?? 0;
-    const headBase1 = new THREE.Vector3(0.98 - pl.tilt * 0.25 + pl.neck + nl1 * 0.35, 1.42 + pl.tilt * 0.45 + pl.neck * 0.5 + nl1 * 0.9, 0);
-    const bl1 = 0.4 * fBeak * (plan === 'picaflor' ? 1.6 : 1);
-    const br1 = 0.12 * clamp(fDepth * (fBeak > 1.4 ? 0.7 : 1), 0.3, 1.8);
-    const wingLen1 = 0.72 * (1 + hwi * 0.9) * (pl.wing ?? 1);
-    const wingGeo1 = sideUV(part('ala', () => new THREE.SphereGeometry(1, 5, 3).scale(1, 0.4, 0.1).translate(-0.35, 0, 0), plan).scale(wingLen1, 1, 1));
-    return buildBirdOnePiece(sp, plan, {
-      pl, f: { tail: fTail }, hs: hs1, headBase: headBase1, bl: bl1, br: br1, legLen: legLen1,
-      P: { ...GRAY, ...(sp.palette || {}) }, wingTex: T.wing, wingGeo: wingGeo1, wingLen: wingLen1, footGeo,
-      tarsusGeo: new THREE.CylinderGeometry(0.055, 0.045, legLen1, 3, 1, true).translate(0, -legLen1 / 2, 0),
-    });
-  }
   const meshes = [];
   const add = (parent, geo, m) => { const mesh = new THREE.Mesh(geo, m); parent.add(mesh); meshes.push(mesh); return mesh; };
 
@@ -191,20 +144,19 @@ export function buildBird(sp, plan = 'paseriforme') {
   const legLen = 0.85 * fTarsus;
   const bodyPivot = new THREE.Group(); bodyPivot.position.y = legLen - 0.05; bird.add(bodyPivot);
   const torso = new THREE.Group(); torso.position.set(0.05, 0.72, 0); torso.rotation.z = pl.tilt; bodyPivot.add(torso);
-  add(torso, sideUV(part('cuerpo', () => new THREE.SphereGeometry(1, 7, 5), plan).scale(...pl.body)), mat(T.body));
+  add(torso, sideUV(new THREE.SphereGeometry(1, 7, 5)).scale(...pl.body), mat(T.body));
 
   const wingLen = 0.72 * (1 + hwi * 0.9) * (pl.wing ?? 1);
-  const wingGeo = sideUV(part('ala', () => new THREE.SphereGeometry(1, 5, 3).scale(1, 0.4, 0.1).translate(-0.35, 0, 0), plan).scale(wingLen, 1, 1));
-  const wingGeoR = wingGeo.clone().scale(1, 1, -1); // espejo: las dos alas abrazan el cuerpo
-  const mWing = mat(T.wing, { twoSided: true });
+  const wingGeo = sideUV(new THREE.SphereGeometry(1, 5, 3)).scale(wingLen, 0.4, 0.1).translate(-wingLen * 0.35, 0, 0);
+  const mWing = mat(T.wing);
   const wings = [];
   for (const s of [-1, 1]) {
     const w = new THREE.Group(); w.position.set(0.05, 0.18, s * pl.body[2] * 0.9); torso.add(w);
-    add(w, s > 0 ? wingGeo : wingGeoR, mWing); w.userData.side = s; wings.push(w);
+    add(w, wingGeo, mWing); w.userData.side = s; wings.push(w);
   }
 
-  const tail = new THREE.Group(); tail.position.set(...(pl.tailPos || [-1.0 * pl.body[0] / 1.15, 0.9]), 0); // tailPos: aves erguidas (pingüino) bodyPivot.add(tail);
-  add(tail, sideUV(part('cola', () => new THREE.BoxGeometry(1, 0.07, 0.5).translate(-0.5, 0, 0), plan).scale(1.05 * fTail, 1, plan === 'picaflor' ? 0.6 : 0.84)), mat(T.tail));
+  const tail = new THREE.Group(); tail.position.set(-1.0 * pl.body[0] / 1.15, 0.9, 0); bodyPivot.add(tail);
+  add(tail, new THREE.BoxGeometry(1.05 * fTail, 0.07, plan === 'picaflor' ? 0.3 : 0.42).translate(-0.5 * fTail, 0, 0), mat(T.tail));
 
   const hs = pl.head;
   const nl = pl.neckLen ?? 0;
@@ -212,18 +164,11 @@ export function buildBird(sp, plan = 'paseriforme') {
   const head = new THREE.Group(); head.position.copy(headBase); bodyPivot.add(head);
   if (nl > 0) { // cuello visible entre el pecho y la cabeza
     const from = new THREE.Vector3(0.75 - pl.tilt * 0.2, 1.1 + pl.tilt * 0.35, 0), dir = headBase.clone().sub(from);
-    if (S_NECK.has(plan)) { // cuello en S (flamenco, cisne, garza): tubo curvo de 5 lados
-      const L = dir.length(), n = dir.clone().normalize(), side = new THREE.Vector3(n.y, -n.x, 0);
-      const curve = new THREE.CatmullRomCurve3([from.clone(), from.clone().addScaledVector(dir, 0.33).addScaledVector(side, L * 0.16),
-        from.clone().addScaledVector(dir, 0.7).addScaledVector(side, -L * 0.1), headBase.clone()]);
-      add(bodyPivot, new THREE.TubeGeometry(curve, 8, hs * 0.42, 5), mat(T.head));
-    } else {
-      const neck = add(bodyPivot, new THREE.CylinderGeometry(hs * 0.45, hs * 0.6, dir.length(), 5), mat(T.head));
-      neck.position.copy(from).addScaledVector(dir, 0.5);
-      neck.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
-    }
+    const neck = add(bodyPivot, new THREE.CylinderGeometry(hs * 0.45, hs * 0.6, dir.length(), 5), mat(T.head));
+    neck.position.copy(from).addScaledVector(dir, 0.5);
+    neck.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
   }
-  add(head, sideUV(part('cabeza', () => new THREE.SphereGeometry(1, 6, 4), plan).scale(hs, hs * 0.93, hs * 0.9)), mat(T.head));
+  add(head, sideUV(new THREE.SphereGeometry(1, 6, 4)).scale(hs, hs * 0.93, hs * 0.9), mat(T.head));
   const mBeak = mat(plain, { tint: T.beak });
   const bl = 0.4 * fBeak * (plan === 'picaflor' ? 1.6 : 1);
   const br = 0.12 * clamp(fDepth * (fBeak > 1.4 ? 0.7 : 1), 0.3, 1.8);
@@ -244,13 +189,16 @@ export function buildBird(sp, plan = 'paseriforme') {
     crest.position.set(-hs * 0.6, hs * 0.5, 0); crest.rotation.z = 0.35;
   }
 
-  const mLeg = mat(plain, { tint: T.legs, twoSided: true });
+  const mLeg = mat(plain, { tint: T.legs });
   const legs = [];
-  const tarsusGeo = new THREE.CylinderGeometry(0.055, 0.045, legLen, 3, 1, true).translate(0, -legLen / 2, 0);
+  const tarsusGeo = new THREE.CylinderGeometry(0.055, 0.045, legLen, 3).translate(0, -legLen / 2, 0);
+  const toeGeo = new THREE.BoxGeometry(0.38, 0.04, 0.06).translate(0.17, 0, 0);
+  const backToeGeo = new THREE.BoxGeometry(0.2, 0.04, 0.06).translate(-0.09, 0, 0);
   for (const s of [-1, 1]) {
     const leg = new THREE.Group(); leg.position.set(0.06, legLen, s * 0.27); bird.add(leg);
     add(leg, tarsusGeo, mLeg);
-    const foot = add(leg, footGeo, mLeg); foot.position.y = -legLen + 0.02;
+    for (const a of [-0.45, 0, 0.45]) { const t = add(leg, toeGeo, mLeg); t.position.y = -legLen + 0.02; t.rotation.y = a; }
+    const bt = add(leg, backToeGeo, mLeg); bt.position.y = -legLen + 0.02;
     legs.push(leg);
   }
 
