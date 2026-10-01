@@ -97,8 +97,18 @@ de cada especie. **Antes:** cuerpo, cabeza, ala y cola eran esferas y una caja. 
 modeladas en Blender (`blender/aves_build.py` → `models/kit/ave_partes.glb`): cuerpo en gota, cabeza con
 frente, ala plana con las primarias en punta y cola en abanico, en el mismo espacio que las primitivas
 (se conservan pivotes, animaciones y pintura por especie). Patas con pie plano de 4 triángulos.
-~220 triángulos por ave (antes 188). Por ahora todos los planes usan estas piezas; los planes propios
-(paloma, gaviota, pingüino, flamenco…) vienen después.
+~220 triángulos por ave (antes 188). Paloma y gaviota tienen piezas propias (abajo); los demás planes usan las del ave base
+hasta tener las suyas (pingüino, flamenco…).
+
+### Planes propios: paloma y gaviota
+
+Con las referencias de Half-Life 2 (paloma de 540 triángulos y gaviota de 470) se hicieron juegos de
+piezas propios. **Paloma** (tórtolas, torcazas, paloma doméstica): pecho profundo y alto, cabeza chica,
+ala plegada ancha de punta redondeada, cola ancha y cuadrada, cuerpo más erguido. **Gaviota** (gaviotas,
+petreles, albatros, salteadores): cuerpo de torpedo, frente plana, ala larga y angosta que pasa la cola,
+cola corta. Mismo presupuesto que el ave base (~210 triángulos por ave).
+
+![Planes paloma y gaviota: antes y después](registro/img/aves_planes_paloma_gaviota.jpg)
 
 ### Metropolitana
 

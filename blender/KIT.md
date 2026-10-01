@@ -13,7 +13,7 @@ Referencias disponibles: `assets/referencias/` (índice en `assets/referencias/I
 
 - **Hecho** (`blender/kit_build.py` → `models/kit/`, cargado por `js/kit.js`): `roca` (3 formas, ~21 tris c/u),
   `arbol_copa` (132), `espino` (129), `arbusto` (68), `pasto` (6). Texturas grises de 32×32; el juego tiñe cada especie.
-- **Aves** (`blender/aves_build.py` → `models/kit/ave_partes.glb`): cuerpo en gota (80 tris), cabeza (56), ala plana con primarias (12) y cola en abanico (16), en el mismo espacio que las primitivas de `js/bird.js`, que las usa para todos los planes; pico y patas siguen procedurales (pie plano de 4 tris). ~220 tris por ave con patas y pico.
+- **Aves** (`blender/aves_build.py` → `models/kit/ave_partes.glb`): cuerpo en gota (80 tris), cabeza (56), ala plana con primarias (12) y cola en abanico (16), en el mismo espacio que las primitivas de `js/bird.js`, que las usa para todos los planes; pico y patas siguen procedurales (pie plano de 4 tris). ~220 tris por ave con patas y pico. Juegos propios para `paloma` (pecho profundo, cola ancha) y `gaviota` (torpedo, ala larga y angosta), con las referencias de Half-Life 2.
 - Pendiente: el resto de la tabla (palma, eucalipto, sauce, lenga, cactus, casas…) y las aves, cuando haya referencias.
 
 ## Prioridad 1 — sirven en las 3 regiones jugables
@@ -54,8 +54,8 @@ Una malla base por plan; la especie cambia paleta (textura), proporciones (pico,
 |---|---|---|---|
 | `paseriforme` | fíos-fíos, chincol, zorzal, diucas (Tyrannidae 49, Thraupidae 36, Furnariidae 33) | 80–120 | **Four Swords Bird (120)**, Mario & Luigi Birds (80), Window Bird (81), MK8 Sparrow (230) |
 | `cola_alta` | chucao, turca, chercán | 80–120 | (base paseriforme) |
-| `paloma` | tórtola, torcaza | 100–160 | HL2 Pigeon (540, reducir) |
-| `gaviota` | gaviotas, petreles, albatros (Laridae 29, Procellariidae 31) | 100–160 | HL2 Seagull (470, reducir) |
+| `paloma` ✔ | tórtola, torcaza | ~210 | HL2 Pigeon (540, reducir) |
+| `gaviota` ✔ | gaviotas, petreles, albatros (Laridae 29, Procellariidae 31) | ~210 | HL2 Seagull (470, reducir) |
 | `pinguino` | pingüinos | 100–160 | Zoo Tycoon 2 Emperor Penguin (1154) y cría (780) |
 | `flamenco` | flamencos | 120–180 | Zoo Tycoon 2 Greater Flamingo (1027) |
 | `garza` | garzas | 120–180 | Secretary Bird (940, patas y cuello) |

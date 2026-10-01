@@ -1,4 +1,5 @@
-# Piezas N64 del ave base (plan paseriforme y derivados) para js/bird.js: cuerpo, cabeza, ala y cola.
+# Piezas N64 de las aves para js/bird.js: cuerpo, cabeza, ala y cola del ave base (paseriforme y derivados),
+# de la paloma y de la gaviota.
 # Están en el mismo espacio y tamaño que las primitivas que reemplazan (esfera unitaria del cuerpo y la
 # cabeza, ala de largo ~2 a lo largo de −X, cola de largo 1), así bird.js mantiene pivotes, animaciones,
 # proporciones por especie (AVONET) y la pintura por especie (proyección lateral, sideUV).
@@ -84,9 +85,46 @@ bmesh.ops.triangulate(bm, faces=[f])
 bmesh.ops.solidify(bm, geom=bm.faces[:], thickness=0.05)
 link('ave_cola', bm, m_ala, sharp=40)
 
-# vista ordenada en la escena
-for i, n in enumerate(('ave_cuerpo', 'ave_cabeza', 'ave_ala', 'ave_cola')):
-    bpy.data.objects[n].location = (i * 3.2, 0, 0)
+
+def flat_part(name, outline, curve=0.0, thick=0.0, sharp=80):
+    """Pieza plana (ala/cola) desde un contorno en el plano X-Z (ala) o X-Y (cola, con thick)."""
+    bm = bmesh.new()
+    if thick:   # cola: plano horizontal con leve V y grosor
+        vs = [bm.verts.new((x, y, 0.035 * abs(y) / 0.25)) for x, y in outline]
+        bmesh.ops.triangulate(bm, faces=[bm.faces.new(vs)])
+        bmesh.ops.solidify(bm, geom=bm.faces[:], thickness=thick)
+        return link(name, bm, m_ala, sharp=40)
+    vs = [bm.verts.new((x, 0, z)) for x, z in outline]
+    bmesh.ops.triangulate(bm, faces=[bm.faces.new(vs)])
+    for v in bm.verts:
+        v.co.y = curve * (1 - (v.co.z / 0.45) ** 2) * max(0.0, (v.co.x + 1.35) / 2)
+    return link(name, bm, m_ala, sharp=sharp)
+
+
+# ---------- paloma (tórtolas, torcazas): pecho profundo y alto, cabeza chica, cola ancha y cuadrada ----------
+link('paloma_cuerpo', lathe_x([(-1.3, 0), (-1.0, 0.4), (-0.45, 0.8), (0.1, 1.0), (0.55, 1.02), (0.88, 0.76), (1.06, 0)],
+                             8, ry=0.94, rz=1.0, zoff=lambda x: 0.12 * max(0.0, 1 - abs(x - 0.45) * 1.2) - 0.05, rot=math.pi / 8), m_gris)
+link('paloma_cabeza', lathe_x([(-0.95, 0), (-0.7, 0.7), (-0.15, 0.98), (0.4, 0.9), (0.8, 0.55), (1.0, 0)],
+                             7, ry=0.88, rz=0.95, zoff=lambda x: 0.04, rot=math.pi / 2), m_gris)
+# ala plegada ancha, punta redondeada (sin primarias sueltas)
+flat_part('paloma_ala', [(0.65, 0.05), (0.42, 0.38), (-0.1, 0.45), (-0.8, 0.34), (-1.25, 0.14), (-1.38, -0.02),
+                         (-1.22, -0.18), (-0.8, -0.3), (-0.2, -0.36), (0.35, -0.2)], curve=0.07)
+flat_part('paloma_cola', [(0.0, 0.18), (-0.95, 0.3), (-1.0, 0.12), (-1.0, -0.12), (-0.95, -0.3), (0.0, -0.18)], thick=0.05)
+
+# ---------- gaviota (gaviotas, petreles, albatros, salteadores): torpedo, frente plana, ala larga y angosta ----------
+link('gaviota_cuerpo', lathe_x([(-1.45, 0), (-1.15, 0.32), (-0.6, 0.7), (0.0, 0.92), (0.55, 0.9), (0.92, 0.6), (1.1, 0)],
+                              8, ry=0.86, rz=0.95, rot=math.pi / 8), m_gris)
+link('gaviota_cabeza', lathe_x([(-0.98, 0), (-0.7, 0.68), (-0.2, 0.96), (0.35, 0.92), (0.75, 0.6), (1.0, 0)],
+                              7, ry=0.86, rz=0.9, zoff=lambda x: 0.08 * max(0.0, x), rot=math.pi / 2), m_gris)
+# ala angosta que termina en punta aguda (las puntas oscuras salen de la textura del ala)
+flat_part('gaviota_ala', [(0.65, 0.04), (0.4, 0.26), (-0.2, 0.3), (-0.8, 0.2), (-1.35, 0.02),
+                          (-0.9, -0.1), (-0.3, -0.22), (0.3, -0.16)], curve=0.04)
+flat_part('gaviota_cola', [(0.0, 0.15), (-1.0, 0.24), (-1.0, -0.24), (0.0, -0.15)], thick=0.045)
+
+# vista ordenada en la escena: una fila por juego de piezas
+for row, pre in enumerate(('ave', 'paloma', 'gaviota')):
+    for i, n in enumerate(('cuerpo', 'cabeza', 'ala', 'cola')):
+        bpy.data.objects[f'{pre}_{n}'].location = (i * 3.2, row * 3.0, 0)
 
 
 def tri_count():

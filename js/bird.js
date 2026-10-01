@@ -9,8 +9,11 @@ import { KIT } from './kit.js';
 
 // Piezas N64 modeladas en Blender (blender/aves_build.py → models/kit/ave_partes.glb). Están en el mismo
 // espacio que las primitivas de antes; si no cargaron, se usan las primitivas.
-function part(name, fallback) {
-  const e = KIT.ave_partes?.meshes.find(m => m.name === name);
+// Juego de piezas propio por plan (paloma, gaviota); el resto usa las del ave base.
+const PART_SET = { paloma: 'paloma', gaviota: 'gaviota' };
+function part(name, fallback, plan) {
+  const meshes = KIT.ave_partes?.meshes || [];
+  const e = meshes.find(m => m.name === `${PART_SET[plan] || 'ave'}_${name}`) || meshes.find(m => m.name === `ave_${name}`);
   if (!e) return fallback();
   const g = e.geometry.clone();
   if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
@@ -39,7 +42,7 @@ const GRAY = { back: [120, 110, 100], back_dark: [80, 72, 64], belly: [180, 172,
 export const PLANS = {
   paseriforme: { tilt: 0.42, tail: 0.35, head: 0.56, legs: 1.0, body: [1.1, 0.85, 0.8], neck: 0 },
   cola_alta: { tilt: 0.18, tail: -1.1, head: 0.56, legs: 1.0, body: [1.15, 0.85, 0.8], neck: 0 },
-  paloma: { tilt: 0.12, tail: 0.12, head: 0.42, legs: 0.7, body: [1.25, 0.9, 0.85], neck: 0.1 },
+  paloma: { tilt: 0.3, tail: 0.2, head: 0.42, legs: 0.7, body: [1.25, 0.9, 0.85], neck: 0.22, neckLen: 0.3, wing: 1.15 }, // pecho erguido y cuello corto
   playero: { tilt: 0.06, tail: 0.25, head: 0.5, legs: 2.1, body: [1.2, 0.8, 0.75], neck: 0.15 },
   picaflor: { tilt: 0.55, tail: 0.5, head: 0.52, legs: 0.35, body: [1.0, 0.62, 0.6], neck: 0 },
   gaviota: { tilt: 0.15, tail: 0.2, head: 0.5, legs: 0.85, body: [1.3, 0.8, 0.75], neck: 0.05, wing: 1.5, swim: true, soar: true },
@@ -165,10 +168,10 @@ export function buildBird(sp, plan = 'paseriforme') {
   const legLen = 0.85 * fTarsus;
   const bodyPivot = new THREE.Group(); bodyPivot.position.y = legLen - 0.05; bird.add(bodyPivot);
   const torso = new THREE.Group(); torso.position.set(0.05, 0.72, 0); torso.rotation.z = pl.tilt; bodyPivot.add(torso);
-  add(torso, sideUV(part('ave_cuerpo', () => new THREE.SphereGeometry(1, 7, 5)).scale(...pl.body)), mat(T.body));
+  add(torso, sideUV(part('cuerpo', () => new THREE.SphereGeometry(1, 7, 5), plan).scale(...pl.body)), mat(T.body));
 
   const wingLen = 0.72 * (1 + hwi * 0.9) * (pl.wing ?? 1);
-  const wingGeo = sideUV(part('ave_ala', () => new THREE.SphereGeometry(1, 5, 3).scale(1, 0.4, 0.1).translate(-0.35, 0, 0)).scale(wingLen, 1, 1));
+  const wingGeo = sideUV(part('ala', () => new THREE.SphereGeometry(1, 5, 3).scale(1, 0.4, 0.1).translate(-0.35, 0, 0), plan).scale(wingLen, 1, 1));
   const wingGeoR = wingGeo.clone().scale(1, 1, -1); // espejo: las dos alas abrazan el cuerpo
   const mWing = mat(T.wing, { twoSided: true });
   const wings = [];
@@ -178,7 +181,7 @@ export function buildBird(sp, plan = 'paseriforme') {
   }
 
   const tail = new THREE.Group(); tail.position.set(-1.0 * pl.body[0] / 1.15, 0.9, 0); bodyPivot.add(tail);
-  add(tail, sideUV(part('ave_cola', () => new THREE.BoxGeometry(1, 0.07, 0.5).translate(-0.5, 0, 0)).scale(1.05 * fTail, 1, plan === 'picaflor' ? 0.6 : 0.84)), mat(T.tail));
+  add(tail, sideUV(part('cola', () => new THREE.BoxGeometry(1, 0.07, 0.5).translate(-0.5, 0, 0), plan).scale(1.05 * fTail, 1, plan === 'picaflor' ? 0.6 : 0.84)), mat(T.tail));
 
   const hs = pl.head;
   const nl = pl.neckLen ?? 0;
@@ -190,7 +193,7 @@ export function buildBird(sp, plan = 'paseriforme') {
     neck.position.copy(from).addScaledVector(dir, 0.5);
     neck.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
   }
-  add(head, sideUV(part('ave_cabeza', () => new THREE.SphereGeometry(1, 6, 4)).scale(hs, hs * 0.93, hs * 0.9)), mat(T.head));
+  add(head, sideUV(part('cabeza', () => new THREE.SphereGeometry(1, 6, 4), plan).scale(hs, hs * 0.93, hs * 0.9)), mat(T.head));
   const mBeak = mat(plain, { tint: T.beak });
   const bl = 0.4 * fBeak * (plan === 'picaflor' ? 1.6 : 1);
   const br = 0.12 * clamp(fDepth * (fBeak > 1.4 ? 0.7 : 1), 0.3, 1.8);

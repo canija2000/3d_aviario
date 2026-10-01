@@ -32,15 +32,20 @@ import { buildBird, planFor } from '../../js/bird.js';
 import { buildBird as buildBirdAntes, planFor as planForAntes } from './antes/bird_ps1.js';
 
 const REGION_NAME = { 'CL-RM': 'Metropolitana', 'CL-VS': 'Valparaíso', 'CL-MA': 'Magallanes' };
-const code = new URLSearchParams(location.search).get('region') || 'CL-RM';
-const max = +(new URLSearchParams(location.search).get('n') || 12);
+// ?region=CL-RM (o varias separadas por coma) · ?plan=paloma,gaviota filtra por plan de cuerpo · ?n=12
+const q = new URLSearchParams(location.search);
+const codes = (q.get('region') || 'CL-RM').split(',');
+const plans = q.get('plan')?.split(',');
+const max = +(q.get('n') || 12);
+const code = codes.join(' + ');
 const get = p => fetch(p).then(r => r.json());
-const [index, region] = await Promise.all([get('../../data/game/index.json'), get(`../../data/game/region-${code}.json`), loadKit('../../models/kit/')]);
+const [index, regions] = await Promise.all([get('../../data/game/index.json'), Promise.all(codes.map(c => get(`../../data/game/region-${c}.json`))), loadKit('../../models/kit/')]);
 index.byId = new Map(index.species.map(s => [s.id, s]));
-featuredIn(index, region);
-const species = Object.keys(region.featured || {}).map(id => index.byId.get(+id)).filter(s => s?.palette).slice(0, max);
+const ids = new Set();
+for (const region of regions) { featuredIn(index, region); Object.keys(region.featured || {}).forEach(id => ids.add(+id)); }
+const species = [...ids].map(id => index.byId.get(id)).filter(s => s?.palette && (!plans || plans.includes(planFor(s)))).slice(0, max);
 
-document.getElementById('t').textContent = `Aves de ${REGION_NAME[code] || code}: antes (primitivas PS1) y después (piezas N64 de Blender)`;
+document.getElementById('t').textContent = `${plans ? 'Planes ' + plans.join(', ') : 'Aves de ' + codes.map(c => REGION_NAME[c] || c).join(', ')}: antes (primitivas PS1) y después (piezas N64 de Blender)`;
 document.getElementById('sub').textContent = `${species.length} especies destacadas con su paleta aprobada · render con el shader del juego`;
 
 const S = 200;
