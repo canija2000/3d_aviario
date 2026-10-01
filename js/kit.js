@@ -3,7 +3,11 @@
 // (cada especie = una pieza + color + tamaño), en vez de las formas procedurales de antes.
 /* global THREE */
 
-export const KIT_PIECES = ['roca', 'arbol_copa', 'espino', 'arbusto', 'pasto', 'ave_partes'];
+export const KIT_PIECES = ['roca', 'arbol_copa', 'espino', 'arbusto', 'pasto', 'ave_partes',
+  // geometría CC0 de Kenney re-texturizada al estilo N64 (blender/kenney_build.py)
+  'palma_chilena', 'quisco', 'eucalipto', 'sauce_chileno', 'lenga', 'nirre', 'tronco_caido', 'flores_altura', 'chagual', 'totora',
+  // pueblo (blender/pueblo_build.py)
+  'casa_color', 'edificio', 'banca_farol', 'muelle'];
 export const KIT = {}; // id → { meshes: [{ name, geometry, map, alpha }], variants?: [[...]] }
 
 function loadGLTF(url) {

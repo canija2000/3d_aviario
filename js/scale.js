@@ -25,13 +25,14 @@ export const PROP_SIZE = {
   sauce_chileno: 8, espino: 3.5, boldo: 2.4, zarzamora: 1.3, quisco: 2.2, eucalipto: 15, lenga: 11, nirre: 4,
   calafate: 1.5, mata_negra: 0.9, hierba_blanca: 0.8, chagual: 2.8,
   roca: 1.0, roca_cerro: 1.6, bolones: 0.6, roca_andina: 1.4, roca_costa: 1.6, llareta: 0.5,
-  coiron: { natural: 0.8, h: 0.7 }, totora: { natural: 1.8, h: 2.0 }, flores_altura: { natural: 0.5, h: 0.35 },
-  doca: { natural: 0.2, h: 0.25 }, madriguera: { natural: 0.25, h: 0.4 }, tronco_caido: { natural: 0.55, h: 0.8 },
+  coiron: { natural: 0.8, h: 0.7 }, totora: 2.0, flores_altura: 0.35,
+  doca: { natural: 0.2, h: 0.25 }, madriguera: { natural: 0.25, h: 0.4 }, tronco_caido: 0.8,
   banca_farol: 3.2, muelle: 1.6,
   edificio: { width: 9 }, casa_color: { width: 6 },
 };
 
 export function propFactor(id, kind) {
+  if (kind.real) return 1; // pieza modelada a tamaño real (blender/pueblo_build.py)
   const t = PROP_SIZE[id];
   if (t == null) return 1;
   if (typeof t === 'number') return kind.perch ? t / kind.perch : 1;

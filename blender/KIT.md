@@ -14,6 +14,8 @@ Referencias disponibles: `assets/referencias/` (índice en `assets/referencias/I
 - **Hecho** (`blender/kit_build.py` → `models/kit/`, cargado por `js/kit.js`): `roca` (3 formas, ~21 tris c/u),
   `arbol_copa` (132), `espino` (129), `arbusto` (68), `pasto` (6). Texturas grises de 32×32; el juego tiñe cada especie.
 - **Aves** (`blender/aves_build.py` → `models/kit/ave_partes.glb`): cuerpo en gota (80 tris), cabeza (56), ala plana con primarias (12) y cola en abanico (16), en el mismo espacio que las primitivas de `js/bird.js`, que las usa para todos los planes; pico y patas siguen procedurales (pie plano de 4 tris). ~220 tris por ave con patas y pico. Juegos propios para `paloma` (pecho profundo, cola ancha) y `gaviota` (torpedo, ala larga y angosta), con las referencias de Half-Life 2.
+- **Geometría de Kenney (CC0) re-texturizada** (`blender/kenney_build.py`): palma chilena (tronco engrosado, copa densa), quisco, eucalipto, sauce chileno, lenga, ñirre, tronco caído, flores de altura, chagual (con vara floral) y totora; 32–228 tris, mismas texturas N64 que el kit.
+- **Pueblo** (`blender/pueblo_build.py`, proporciones del Kenney Fantasy Town Kit): casa de chapa de 1 y 2 pisos (32 y 52 tris; muros y techo teñidos por color, ventanas y puerta sin teñir), edificio de fondo, banca con farol y muelle, a tamaño real.
 - Pendiente: el resto de la tabla (palma, eucalipto, sauce, lenga, cactus, casas…) y las aves, cuando haya referencias.
 
 ## Prioridad 1 — sirven en las 3 regiones jugables
