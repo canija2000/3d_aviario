@@ -109,12 +109,13 @@ export async function loadPoroto() {
     P.t += dt;
     if (P.travel) return travelStep(dt);
     shadow.visible = root.visible;
-    const bob = Math.sin(P.t * 12);
+    const running = !!(P.run && P.drive && P.drive.lengthSq() > 0.01);
+    const bob = Math.sin(P.t * (running ? 18 : 12)); // trote más rápido al correr
     let waddle = 0, sleep = false;
     if (P.drive && P.drive.lengthSq() > 0.01) {
       // control directo con las flechas (P.drive = dirección en el plano x-z, relativa al mundo)
       P.target = null; P.onArrive = null; P.idleFor = 0; P.state = 'walk';
-      const step = P.speed * dt * Math.min(1, P.drive.length());
+      const step = P.speed * (running ? 1.9 : 1) * dt * Math.min(1, P.drive.length()); // espacio: correr
       const nx = P.pos.x + P.drive.x / P.drive.length() * step, nz = P.pos.z + P.drive.y / P.drive.length() * step;
       // si choca, se desliza por el borde del obstáculo en vez de quedar trabado
       if (!blocked || !blocked(nx, nz)) { P.pos.x = nx; P.pos.z = nz; }

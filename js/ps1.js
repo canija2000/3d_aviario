@@ -18,7 +18,7 @@ export const shared = {
 const VS = `
   uniform vec2 uSnap; uniform float uJitter; uniform float uAffine;
   uniform vec3 uLightDir; uniform vec3 uLightCol; uniform vec3 uAmb;
-  uniform float uFogNear; uniform float uFogFar; uniform vec2 uRepeat; uniform float uTwoSided; uniform float uSteady;
+  uniform float uFogNear; uniform float uFogFar; uniform vec2 uRepeat; uniform vec2 uOffset; uniform float uTwoSided; uniform float uSteady;
   varying vec3 vUvw; varying vec3 vLight; varying float vFog; varying float vUp; varying float vDepth; varying vec3 vCol;
   void main() {
     #ifdef USE_COLOR
@@ -45,7 +45,7 @@ const VS = `
     d = uTwoSided > 0.5 ? abs(d) : max(d, 0.0);
     vLight = uAmb + uLightCol * d;
     float w = uAffine > 0.5 ? p.w : 1.0;
-    vUvw = vec3(uv * uRepeat * w, w);
+    vUvw = vec3((uv * uRepeat + uOffset) * w, w);
     vFog = clamp((-mv.z - uFogNear) / (uFogFar - uFogNear), 0.0, 1.0);
     vDepth = -mv.z;
     gl_Position = p;
@@ -81,6 +81,7 @@ export function mat(tex, o = {}) {
       map: { value: tex },
       uTint: { value: new THREE.Color(o.tint ?? 0xffffff) },
       uRepeat: { value: new THREE.Vector2(o.rx ?? 1, o.ry ?? 1) },
+      uOffset: { value: new THREE.Vector2(0, 0) }, // desplazamiento animable (agua que corre)
       uAlphaMode: { value: o.alpha ?? 0 },
       uTwoSided: { value: o.twoSided ? 1 : 0 },
       uSnowable: { value: o.snowable ? 1 : 0 },
