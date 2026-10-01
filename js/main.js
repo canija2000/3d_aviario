@@ -7,6 +7,7 @@ import { buildScene, signpost, WORLD } from './scene.js';
 import { loadPoroto } from './poroto.js';
 import { CAMERA, PORORO_BUBBLE_Y } from './scale.js';
 import { createMinimap } from './minimap.js';
+import { loadKit } from './kit.js';
 import { Director } from './aviary.js';
 import { buildBird } from './bird.js';
 import { unlockAudio, setListener, setMuted, blip, setAmbience, duckAmbience } from './audio.js';
@@ -43,7 +44,7 @@ function loadBook() {
 }
 function saveBook() { try { localStorage.setItem('aviario.libreta', JSON.stringify([...G.book])); } catch { /* sin almacenamiento */ } }
 
-const poroto = await loadPoroto();
+const [poroto] = await Promise.all([loadPoroto(), loadKit()]);
 const minimap = createMinimap();
 const bubble = document.createElement('div');
 bubble.className = 'tip'; bubble.style.setProperty('--tip', '#f4d35e'); bubble.hidden = true; document.body.appendChild(bubble);
