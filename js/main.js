@@ -260,15 +260,12 @@ async function enterHub() {
 function portalClicked(p) {
   const r = p.region;
   if (!p.active) { say(`${r.name}: próximamente`); blip(220, 0.1); return; }
-  const target = p.gem.position.clone(); target.x -= 3.2; target.y = 0;
-  poroto.walkTo(target, () => {
-    poroto.look = p.gem.position.clone();
-    openDialog(`Portal a la <b>${r.fullName || r.name}</b>. ¿Qué año quieres visitar?`, [
-      { label: 'Año típico', fn: () => enterRegion(r.code) },
-      ...G.index.years.slice(-3).map(y => ({ label: String(y), disabled: true, title: 'Selector de año: después del MVP' })),
-      { label: 'Volver' },
-    ]);
-  });
+  poroto.look = p.gem.position.clone();
+  openDialog(`Portal a la <b>${r.fullName || r.name}</b>. ¿Qué año quieres visitar?`, [
+    { label: 'Año típico', fn: () => enterRegion(r.code) },
+    ...G.index.years.slice(-3).map(y => ({ label: String(y), disabled: true, title: 'Selector de año: después del MVP' })),
+    { label: 'Volver' },
+  ]);
 }
 
 // ------------------------------------------------------------------ REGIÓN Y ESCENAS
@@ -474,28 +471,6 @@ const CURSORS = {
 function setCursor(kind) { canvas.style.cursor = CURSORS[kind] || CURSORS.arrow; }
 setCursor('arrow');
 
-// X roja donde se hizo clic (estilo RuneScape): aparece, late y se desvanece.
-const marker = new THREE.Group();
-{
-  const m = new THREE.MeshBasicMaterial({ color: 0xd8342a, depthTest: false, transparent: true });
-  const o = new THREE.MeshBasicMaterial({ color: 0x05060b, depthTest: false, transparent: true });
-  for (const a of [Math.PI / 4, -Math.PI / 4]) {
-    const bar = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.02, 0.2), m); bar.rotation.y = a; bar.renderOrder = 11; marker.add(bar);
-    const out = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.01, 0.34), o); out.rotation.y = a; out.renderOrder = 10; marker.add(out);
-  }
-  marker.visible = false; marker.userData.t = 0;
-}
-function showMarker(p) { marker.position.set(p.x, p.y + 0.08, p.z); marker.visible = true; marker.userData.t = 0; G.world?.add(marker); }
-function updateMarker(dt) {
-  if (!marker.visible) return;
-  const t = (marker.userData.t += dt);
-  const pop = t < 0.15 ? t / 0.15 * 1.3 : 1 + 0.12 * Math.sin(t * 10);
-  marker.scale.setScalar(pop);
-  const fadeOut = poroto.state !== 'walk' ? Math.max(0, 1 - (t - 0.3) * 3) : 1;
-  marker.children.forEach(c => { c.material.opacity = fadeOut; });
-  if (fadeOut <= 0 || t > 8) marker.visible = false;
-}
-
 // ------------------------------------------------------------------ interacción
 const ray = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -533,14 +508,14 @@ function setHover(h, ev) {
   G.hover = h?.bird || null;
   poroto.binoc = G.hover ? 1 : 0;
   poroto.look = G.hover ? G.hover.pos.clone() : null;
-  setCursor(h?.bird || h?.portal ? 'hand' : h?.exit ? 'trail' : 'arrow');
+  setCursor(h?.bird ? 'hand' : 'arrow');
   if (h?.bird) {
     const a = h.bird;
     a.m.setOutline(a.color);
     tip.innerHTML = `${a.sp.comName} · <span style="color:${a.color}">${CLASS_LABEL[a.cls]}</span>`;
     tip.style.setProperty('--tip', a.color);
   } else if (h?.exit) {
-    tip.innerHTML = `Sendero a <b>${SCENE_LABEL[h.exit.key]}</b>`; tip.style.setProperty('--tip', '#f4d35e');
+    tip.innerHTML = `Sendero a <b>${SCENE_LABEL[h.exit.key]}</b> · camina hasta el letrero`; tip.style.setProperty('--tip', '#f4d35e');
   } else if (h?.portal) {
     tip.innerHTML = h.portal.active ? `<b>${h.portal.region.name}</b>` : `${h.portal.region.name} · próximamente`;
     tip.style.setProperty('--tip', h.portal.active ? '#f4d35e' : '#6f7697');
@@ -555,26 +530,10 @@ canvas.addEventListener('pointermove', ev => {
 canvas.addEventListener('pointerdown', ev => {
   if (ev.button !== 0 || (G.mode !== 'scene' && G.mode !== 'hub')) return;
   if (G.dialogOpen) closeDialog();
+  // Poroto se mueve solo con las flechas; el clic sirve para mirar aves.
   const h = pick(ev);
-  if (h.portal) { portalClicked(h.portal); return; }
   if (h.bird) { birdClicked(h.bird); return; }
-  if (h.exit) {
-    const s = h.exit.sign.position;
-    poroto.walkTo(new THREE.Vector3(s.x * 0.93, 0, s.z * 0.93), () => travel(h.exit.key));
-    return;
-  }
-  if (h.ground) {
-    if (G.mode === 'hub') {
-      const { p, d } = G.hubWorld.snap(h.ground.x, h.ground.z);
-      if (d < 4) { poroto.walkTo(p); showMarker(p); }
-    } else {
-      const lim = G.sc.half - 2;
-      const x = Math.max(-lim, Math.min(lim, h.ground.x)), z = Math.max(-lim, Math.min(lim, h.ground.z));
-      poroto.walkTo(new THREE.Vector3(x, 0, z));
-      showMarker(new THREE.Vector3(x, G.sc.heightAt(x, z), z));
-    }
-    blip(990, 0.03);
-  }
+  if (h.portal || h.exit) { say('Camina hasta ahí con las flechas.', 1.8); blip(330, 0.04); }
 });
 // Cámara: las teclas, el arrastre con botón derecho y la rueda mueven una meta; la cámara la sigue
 // con suavizado exponencial (sin saltos).
@@ -603,7 +562,6 @@ function driveFromKeys() {
   if (G.dialogOpen) closeDialog();
   const fx = -Math.cos(G.cam.yaw), fz = Math.sin(G.cam.yaw); // hacia donde mira la cámara
   (poroto.drive ||= new THREE.Vector2()).set(fx * f - fz * r, fz * f + fx * r);
-  marker.visible = false;
 }
 // Después de mover: no salirse del camino ni de la escena, y entrar a portales y senderos caminando.
 function afterDrive() {
@@ -615,7 +573,10 @@ function afterDrive() {
       const g = pr.userData.portal.gem.position;
       return Math.hypot(g.x - 3.2 - poroto.pos.x, g.z - poroto.pos.z) < 1.1;
     });
-    if (near && near !== G.nearPortal) { keys.clear(); poroto.drive = null; portalClicked(near.userData.portal); }
+    if (near && near !== G.nearPortal) {
+      if (near.userData.portal.active) { keys.clear(); poroto.drive = null; } // se detiene solo en portales activos
+      portalClicked(near.userData.portal);
+    }
     G.nearPortal = near || null;
   } else if (G.mode === 'scene') {
     const lim = G.sc.half - 2;
@@ -835,7 +796,6 @@ function frame(now) {
     }
     // cámara semifija que sigue a Poroto
     steerCamera(dt);
-    updateMarker(dt);
     const c = G.cam;
     const goal = new THREE.Vector3(poroto.pos.x, poroto.root.position.y + CAMERA.targetY, poroto.pos.z);
     c.target.lerp(goal, 1 - Math.exp(-dt * 3));
