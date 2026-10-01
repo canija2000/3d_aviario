@@ -32,6 +32,7 @@ export const PROP_SIZE = {
 };
 
 export function propFactor(id, kind) {
+  if (kind.real) return 1; // pieza modelada a tamaño real (blender/pueblo_build.py)
   const t = PROP_SIZE[id];
   if (t == null) return 1;
   if (typeof t === 'number') return kind.perch ? t / kind.perch : 1;

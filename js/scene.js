@@ -155,6 +155,21 @@ function useKit(kinds, m) {
   piece('flores_altura', [90, 130, 60]);
   piece('chagual', [130, 150, 110], { perch: 2.8 });
   piece('totora', [80, 120, 50]);
+  // pueblo (blender/pueblo_build.py), a tamaño real: casas de chapa en 2 formas × colores de los cerros
+  const tinted = (e, wall, roof) => [e.geometry, m(e.map || plainTex, {
+    tint: e.material === 'kit_casa' ? kitTint(wall) : e.material === 'kit_techo' ? kitTint(roof) : 0xffffff })];
+  if (has('casa_color')) {
+    const WALLS = [[196, 72, 60], [232, 184, 64], [72, 132, 176], [120, 172, 96], [216, 132, 160], [236, 228, 208]];
+    const ROOFS = [[150, 70, 50], [120, 120, 124]];
+    const shapes = [...new Set(KIT.casa_color.meshes.map(e => e.name.replace(/_\d+$/, '')))];
+    const variants = [];
+    WALLS.forEach((w, i) => shapes.forEach(sh => variants.push(KIT.casa_color.meshes.filter(e => e.name.startsWith(sh)).map(e => tinted(e, w, ROOFS[i % 2])))));
+    kinds.casa_color = { ...kinds.casa_color, parts: undefined, variants, real: true, radius: 3.6, perch: 6.5, building: true };
+  }
+  if (has('edificio')) kinds.edificio = { ...kinds.edificio, parts: KIT.edificio.meshes.map(e => tinted(e, [255, 255, 255], [255, 255, 255])),
+    real: true, realScale: R => ({ x: 1, y: 1 + R() * 0.8, z: 1 }), radius: 6.2 };
+  if (has('banca_farol')) kinds.banca_farol = { ...kinds.banca_farol, parts: KIT.banca_farol.meshes.map(e => tinted(e)), real: true, perch: 3.5 };
+  if (has('muelle')) kinds.muelle = { ...kinds.muelle, parts: KIT.muelle.meshes.map(e => tinted(e)), real: true, perch: 1.1 };
   if (has('roca')) {
     const rock = (rgb, snowable = false) => ({ perch: 0.9,
       variants: KIT.roca.variants.map(v => v.map(e => [e.geometry, m(e.map || plainTex, { tint: kitTint(rgb), snowable })])) });
@@ -268,7 +283,7 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20, austra
     instances.get(iid).push(mtx);
     if (k.perch) perches.push(new THREE.Vector3(x, y + k.perch * (s.y ?? s), z));
     if (k.flower) flowers.push(new THREE.Vector3(x, y + 0.5, z));
-    if (k.building) obstacles.push({ x, z, r: 1.3 * (s.x ?? s) });
+    if (k.building) obstacles.push({ x, z, r: (k.radius ?? 1.3) * (s.x ?? s) });
     if (k.trunkH || ((k.perch ?? 0) > 2.5 && !k.building)) { // tronco para trepadores (carpintero)
       const a = R() * Math.PI * 2, r = 0.28 * (s.x ?? s);
       const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
@@ -293,7 +308,10 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20, austra
       const x = cx + (R() - 0.5) * cell * 0.8, z = cz + (R() - 0.5) * cell * 0.8;
       if (Math.hypot(x, z) < 2.2 || onPath(x, z, p.tipo === 'edificio' ? PATH_W + 1.5 : PATH_W)) continue;
       count[p.id] = (count[p.id] ?? 0) + 1;
-      const s = p.tipo === 'edificio' ? { x: 0.8 + R() * 0.4, y: 1.5 + R() * 2.5, z: 0.8 + R() * 0.4 } : 0.7 + R() * 0.6;
+      const k = kinds[p.id];
+      // piezas modeladas a tamaño real: solo una leve variación (y la altura del edificio)
+      const s = k.real ? (k.realScale ? k.realScale(R) : 0.9 + R() * 0.2)
+        : p.tipo === 'edificio' ? { x: 0.8 + R() * 0.4, y: 1.5 + R() * 2.5, z: 0.8 + R() * 0.4 } : 0.7 + R() * 0.6;
       place(p.id, x, z, s, R() * Math.PI * 2);
     }
   }
