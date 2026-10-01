@@ -100,6 +100,19 @@ frente, ala plana con las primarias en punta y cola en abanico, en el mismo espa
 ~220 triángulos por ave (antes 188). Hay piezas propias para paloma, gaviota, pingüino, flamenco, pato, pelícano, rapaz, picaflor y
 playero (abajo); loro, carpintero, codorniz y ñandú siguen con las del ave base.
 
+### Una sola pieza (versión vigente para paseriformes)
+
+Las piezas de Blender (arriba) no cambiaron la construcción: seguía siendo un **ensamble** (cabeza = otra
+esfera encajada, pico = cono pegado, alas y cola = placas que sobresalen, 5–6 texturas). Las referencias
+(Poly Pizza, Half-Life 2) son **una malla continua con una textura**, igual que Poroto N64. Ahora cada ave
+de los planes paseriforme y cola alta es **una sola malla** generada en `js/bird1.js`: loft de 6 lados de
+la punta de la cola al pico (cola → cuerpo → cuello → cabeza → pico), **una textura de 64×32** pintada
+encima (ojo, máscara, garganta, ala plegada, patrones y acentos de la paleta) y **168 triángulos**. La
+cabeza y la cola se animan deformando solo sus vértices (mezcla en el cuello); las alas de vuelo aparecen
+solo al aletear. Columnas: PS1 · por piezas (PR #10) · una pieza.
+
+![Paseriformes: PS1, por piezas y una sola pieza](registro/img/aves_una_pieza_paseriformes.jpg)
+
 ### Planes propios: paloma y gaviota
 
 Con las referencias de Half-Life 2 (paloma de 540 triángulos y gaviota de 470) se hicieron juegos de

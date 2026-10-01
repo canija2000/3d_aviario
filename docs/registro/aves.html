@@ -15,7 +15,7 @@
   td.n { width: 170px; padding-right: 8px; }
   td.n b { display: block; }
   td.n small { color: #9aa3c4; }
-  canvas { display: block; width: 200px; height: 200px; image-rendering: pixelated; border-radius: 4px; }
+  canvas { display: block; width: 180px; height: 180px; image-rendering: pixelated; border-radius: 4px; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -23,12 +23,12 @@
 <body>
 <h1 id="t"></h1>
 <p id="sub"></p>
-<table><thead><tr><th></th><th>antes · lado</th><th>después · lado</th><th>después · 3/4</th><th>después · atrás</th></tr></thead><tbody id="rows"></tbody></table>
+<table><thead><tr><th></th><th>PS1 · lado</th><th>por piezas · lado</th><th>una pieza · lado</th><th>una pieza · 3/4</th><th>una pieza · atrás</th></tr></thead><tbody id="rows"></tbody></table>
 <script type="module">
 import { shared } from '../../js/ps1.js';
 import { featuredIn } from '../../js/data.js';
 import { loadKit } from '../../js/kit.js';
-import { buildBird, planFor } from '../../js/bird.js';
+import { buildBird, planFor, setOnePiece } from '../../js/bird.js';
 import { buildBird as buildBirdAntes, planFor as planForAntes } from './antes/bird_ps1.js';
 
 const REGION_NAME = { 'CL-RM': 'Metropolitana', 'CL-VS': 'Valparaíso', 'CL-MA': 'Magallanes' };
@@ -45,7 +45,7 @@ const ids = new Set();
 for (const region of regions) { featuredIn(index, region); Object.keys(region.featured || {}).forEach(id => ids.add(+id)); }
 const species = [...ids].map(id => index.byId.get(id)).filter(s => s?.palette && (!plans || plans.includes(planFor(s)))).slice(0, max);
 
-document.getElementById('t').textContent = `${plans ? 'Planes ' + plans.join(', ') : 'Aves de ' + codes.map(c => REGION_NAME[c] || c).join(', ')}: antes (primitivas PS1) y después (piezas N64 de Blender)`;
+document.getElementById('t').textContent = `${plans ? 'Planes ' + plans.join(', ') : 'Aves de ' + codes.map(c => REGION_NAME[c] || c).join(', ')}: PS1 · por piezas (PR #10) · una sola pieza`;
 document.getElementById('sub').textContent = `${species.length} especies destacadas con su paleta aprobada · render con el shader del juego`;
 
 const S = 200;
@@ -73,7 +73,10 @@ for (const sp of species) {
   const tr = document.createElement('tr');
   const plan = planFor(sp);
   tr.innerHTML = `<td class="n"><b>${sp.comName}</b><small><i>${sp.sciName}</i><br>plan: ${plan}</small></td>`;
-  const cells = [shot(buildBirdAntes, sp, planForAntes(sp), 'lado', 500000), shot(buildBird, sp, plan, 'lado', 0),
+  setOnePiece(false);
+  const piezas = shot(buildBird, sp, plan, 'lado', 700000);
+  setOnePiece(true);
+  const cells = [shot(buildBirdAntes, sp, planForAntes(sp), 'lado', 500000), piezas, shot(buildBird, sp, plan, 'lado', 0),
     shot(buildBird, sp, plan, 'tres', 0), shot(buildBird, sp, plan, 'atras', 0)];
   for (const cv of cells) { const td = document.createElement('td'); td.appendChild(cv); tr.appendChild(td); }
   tbody.appendChild(tr);
