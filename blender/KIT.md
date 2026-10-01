@@ -13,6 +13,7 @@ Referencias disponibles: `assets/referencias/` (índice en `assets/referencias/I
 
 - **Hecho** (`blender/kit_build.py` → `models/kit/`, cargado por `js/kit.js`): `roca` (3 formas, ~21 tris c/u),
   `arbol_copa` (132), `espino` (129), `arbusto` (68), `pasto` (6). Texturas grises de 32×32; el juego tiñe cada especie.
+- **Aves** (`blender/aves_build.py` → `models/kit/ave_partes.glb`): cuerpo en gota (80 tris), cabeza (56), ala plana con primarias (12) y cola en abanico (16), en el mismo espacio que las primitivas de `js/bird.js`, que las usa para todos los planes; pico y patas siguen procedurales (pie plano de 4 tris). ~220 tris por ave con patas y pico.
 - Pendiente: el resto de la tabla (palma, eucalipto, sauce, lenga, cactus, casas…) y las aves, cuando haya referencias.
 
 ## Prioridad 1 — sirven en las 3 regiones jugables
