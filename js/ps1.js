@@ -18,8 +18,13 @@ const VS = `
   uniform vec2 uSnap; uniform float uJitter; uniform float uAffine;
   uniform vec3 uLightDir; uniform vec3 uLightCol; uniform vec3 uAmb;
   uniform float uFogNear; uniform float uFogFar; uniform vec2 uRepeat; uniform float uTwoSided; uniform float uSteady;
-  varying vec3 vUvw; varying vec3 vLight; varying float vFog; varying float vUp; varying float vDepth;
+  varying vec3 vUvw; varying vec3 vLight; varying float vFog; varying float vUp; varying float vDepth; varying vec3 vCol;
   void main() {
+    #ifdef USE_COLOR
+      vCol = color.rgb;
+    #else
+      vCol = vec3(1.0);
+    #endif
     vec4 local = vec4(position, 1.0);
     vec3 nrm = normal;
     #ifdef USE_INSTANCING
@@ -47,8 +52,8 @@ const VS = `
 const FS = `
   uniform sampler2D map; uniform vec3 uTint; uniform float uDither; uniform vec3 uFogColor;
   uniform float uAlphaMode; uniform float uSnow; uniform float uSnowable; uniform float uFlash;
-  uniform float uCutNear; uniform float uCutaway;
-  varying vec3 vUvw; varying vec3 vLight; varying float vFog; varying float vUp; varying float vDepth;
+  uniform float uCutNear; uniform float uCutaway; uniform float uVcol;
+  varying vec3 vUvw; varying vec3 vLight; varying float vFog; varying float vUp; varying float vDepth; varying vec3 vCol;
   float b2(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
   float bayer(vec2 a) { return b2(0.5 * a) * 0.25 + b2(a); }
   void main() {
@@ -58,6 +63,7 @@ const FS = `
     if (uAlphaMode > 1.5) { if (t.a < th * 0.94 + 0.03) discard; }
     else if (uAlphaMode > 0.5) { if (t.a < 0.5) discard; }
     vec3 base = t.rgb * uTint;
+    base *= mix(vec3(1.0), pow(vCol, vec3(1.0 / 2.2)), uVcol); // sombra horneada en colores por vértice (modelos N64)
     if (uSnowable > 0.5) base = mix(base, vec3(0.93, 0.95, 1.0), uSnow * smoothstep(0.55, 0.9, vUp) * step(th, 0.85));
     vec3 c = base * vLight + uFlash;
     c = mix(c, uFogColor, vFog);
@@ -78,7 +84,10 @@ export function mat(tex, o = {}) {
       uFlash: { value: 0 },
       uCutaway: { value: o.cutaway ? 1 : 0 },
       uSteady: { value: o.steady ? 1 : 0 },
+      uVcol: { value: o.vcol ?? 0 },
+      ...(o.perspective ? { uAffine: { value: 0 } } : {}), // texturas sin deformación afín (N64)
     },
+    vertexColors: !!o.vcol,
     vertexShader: VS, fragmentShader: FS,
     side: o.twoSided ? THREE.DoubleSide : THREE.FrontSide,
   });

@@ -4,7 +4,7 @@
 import { shared, mat, makeTex, makeVary, mulberry32, createRenderer, fitRenderer, texPlain } from './ps1.js';
 import { loadWorld, loadRegion, loadJSON, DATA_BASE, CLASS_LABEL, birdDialog, welcomeText, featuredIn } from './data.js';
 import { buildScene, signpost, WORLD } from './scene.js';
-import { buildPoroto } from './poroto.js';
+import { loadPoroto } from './poroto.js';
 import { Director } from './aviary.js';
 import { buildBird } from './bird.js';
 import { unlockAudio, setListener, setMuted, blip, setAmbience, duckAmbience } from './audio.js';
@@ -41,7 +41,7 @@ function loadBook() {
 }
 function saveBook() { try { localStorage.setItem('aviario.libreta', JSON.stringify([...G.book])); } catch { /* sin almacenamiento */ } }
 
-const poroto = buildPoroto();
+const poroto = await loadPoroto();
 const bubble = document.createElement('div');
 bubble.className = 'tip'; bubble.style.setProperty('--tip', '#f4d35e'); bubble.hidden = true; document.body.appendChild(bubble);
 let bubbleT = 0;
