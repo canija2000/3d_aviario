@@ -46,7 +46,11 @@ Referencias disponibles: `assets/referencias/` (índice en `assets/referencias/I
 | `muelle` | muelle de madera con pilotes | MA | 1,6 | 40–80 | tablones + pilotes 4 lados | — |
 | `tronco_caido`, `madriguera` | tronco de lenga en el suelo; cueva de pingüino | MA | 0,4–0,8 | 20–40 | prisma / domo con hueco pintado | — |
 
-## Aves — planes de cuerpo (`js/bird.js`), una malla por plan y la paleta por especie
+## Aves — planes de cuerpo
+
+**Vigente:** cada ave es una sola malla generada en `js/bird1.js` (perfil por plan + textura pintada); las
+piezas de `ave_partes.glb` solo se usan para las alas de vuelo. La tabla de abajo queda como registro de
+referencias por plan.
 
 Una malla base por plan; la especie cambia paleta (textura), proporciones (pico, cola, patas) y escala.
 

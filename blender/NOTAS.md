@@ -71,7 +71,7 @@ Cómo trabajamos los modelos del Aviario 3D y qué aprendimos. Estilo objetivo: 
 - Qué hace bien y mal el MCP de Blender (bloqueos y low poly sí; topología de producción no):
   https://www.strayspark.studio/blog/blender-mcp-ai-assisted-3d-modeling-step-by-step-2026
 
-## Aves: de ensamble a una sola pieza (plan acordado el 2026-10-01, pendiente)
+## Aves: de ensamble a una sola pieza (acordado y hecho el 2026-10-01: js/bird1.js, todos los planes)
 
 Diagnóstico (medido en Blender sobre las referencias): las aves de Poly Pizza y Half-Life 2 son **1 malla
 continua con 1 textura**; las nuestras (PR #10) son ~12 piezas con 5–6 materiales: cabeza = otra esfera

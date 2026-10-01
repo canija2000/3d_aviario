@@ -12,17 +12,39 @@ const TAU = Math.PI * 2;
 const SIDES = 6;
 const plain = texPlain();
 
-// Perfil del cuerpo a lo largo de su eje (s = −1.25 cola … 0.85 pecho alto): fracción del radio.
-const BODY_PROFILE = [[-1.25, 0.24], [-1.0, 0.48], [-0.55, 0.86], [0.0, 1.0], [0.45, 0.95], [0.82, 0.72]];
+// Perfil del cuerpo a lo largo de su eje (s = −1.25 cola … 0.82 pecho alto): [s, fracción del radio, alza].
+// "alza" sube el centro del anillo (popa levantada del pato). Siluetas tomadas de las referencias
+// (Half-Life 2, Zoo Tycoon 2, Poly Pizza): ver docs/registro_modelos.md.
+const P0 = [[-1.25, 0.24], [-1.0, 0.48], [-0.55, 0.86], [0.0, 1.0], [0.45, 0.95], [0.82, 0.72]];
+const PROFILES = {
+  paloma: [[-1.25, 0.26], [-1.0, 0.5], [-0.55, 0.88], [0.0, 1.0], [0.45, 1.03], [0.82, 0.8]],     // pecho profundo
+  playero: [[-1.25, 0.2], [-1.0, 0.42], [-0.55, 0.82], [0.0, 1.0], [0.45, 0.92], [0.82, 0.66]],  // esbelto
+  garza: [[-1.25, 0.2], [-1.0, 0.42], [-0.55, 0.82], [0.0, 1.0], [0.45, 0.9], [0.82, 0.62]],
+  picaflor: [[-1.25, 0.2], [-1.0, 0.4], [-0.55, 0.8], [0.0, 1.0], [0.45, 0.9], [0.82, 0.6]],
+  gaviota: [[-1.3, 0.22], [-1.0, 0.45], [-0.55, 0.82], [0.0, 1.0], [0.5, 0.95], [0.85, 0.66]],   // torpedo
+  pelicano: [[-1.25, 0.3], [-1.0, 0.56], [-0.55, 0.92], [0.0, 1.05], [0.45, 1.0], [0.82, 0.75]], // pesado
+  cormoran: [[-1.25, 0.24], [-1.0, 0.48], [-0.55, 0.86], [0.0, 1.0], [0.45, 0.95], [0.82, 0.7]],
+  pato: [[-1.25, 0.3, 0.3], [-1.0, 0.55, 0.15], [-0.55, 0.88], [0.0, 1.0], [0.45, 0.98], [0.82, 0.72]], // bote
+  cisne: [[-1.25, 0.3, 0.3], [-1.0, 0.55, 0.15], [-0.55, 0.9], [0.0, 1.02], [0.45, 1.0], [0.82, 0.72]],
+  rapaz: [[-1.25, 0.24], [-1.0, 0.45], [-0.55, 0.8], [0.0, 1.0], [0.45, 1.04], [0.82, 0.8]],     // hombros anchos
+  loro: [[-1.25, 0.22], [-1.0, 0.45], [-0.55, 0.82], [0.0, 1.0], [0.45, 1.0], [0.82, 0.78]],
+  carpintero: [[-1.25, 0.22], [-1.0, 0.45], [-0.55, 0.82], [0.0, 1.0], [0.45, 0.98], [0.82, 0.74]],
+  codorniz: [[-1.25, 0.3], [-1.0, 0.62], [-0.55, 0.95], [0.0, 1.05], [0.45, 1.0], [0.82, 0.7]],   // redonda
+  nandu: [[-1.25, 0.35], [-1.0, 0.7], [-0.55, 1.0], [0.0, 1.05], [0.45, 0.95], [0.82, 0.62]],
+  pinguino: [[-1.25, 0.3], [-1.0, 0.75], [-0.55, 1.0], [0.0, 0.95], [0.45, 0.8], [0.82, 0.6]],   // huevo erguido
+  flamenco: [[-1.2, 0.3], [-1.0, 0.6], [-0.55, 0.95], [0.0, 1.0], [0.45, 0.9], [0.82, 0.6]],
+};
+const FLAT_BELLY = { pato: 0.55, cisne: 0.6 };   // vientre plano de las aves que flotan
+const S_NECK = new Set(['flamenco', 'cisne', 'garza']);
 
 /** Anillo de SIDES vértices perpendicular a `axis` (en el plano x-y), alto h y ancho w. k=0 = vientre. */
-function ring(center, axis, w, h) {
+function ring(center, axis, w, h, fb = 1) {
   const z = new THREE.Vector3(0, 0, 1);
   const up = new THREE.Vector3().crossVectors(z, axis).normalize();
   const pts = [];
   for (let k = 0; k <= SIDES; k++) { // el último repite el primero (costura de la textura)
-    const a = TAU * k / SIDES;
-    pts.push(center.clone().addScaledVector(up, -Math.cos(a) * h).addScaledVector(z, Math.sin(a) * w));
+    const a = TAU * k / SIDES, c = -Math.cos(a);
+    pts.push(center.clone().addScaledVector(up, c * h * (c < 0 ? fb : 1)).addScaledVector(z, Math.sin(a) * w));
   }
   return pts;
 }
@@ -31,7 +53,7 @@ function ring(center, axis, w, h) {
  * Esqueleto de anillos de la especie en el espacio de bodyPivot (mismo espacio que el ave por piezas).
  * Devuelve [{c, w, h, zone, wHead, wTail}] + datos de pivotes.
  */
-function skeleton(pl, f, hs, headBase, bl, br) {
+function skeleton(pl, f, hs, headBase, bl, br, plan) {
   const B = pl.body, t = pl.tilt;
   const C = new THREE.Vector3(0.05, 0.72, 0);
   const d = new THREE.Vector3(Math.cos(t), Math.sin(t), 0);
@@ -40,21 +62,28 @@ function skeleton(pl, f, hs, headBase, bl, br) {
   const tailPivot = new THREE.Vector3(...(pl.tailPos || [-1.0 * B[0] / 1.15, 0.9]), 0);
   const tr = pl.tail, tdir = new THREE.Vector3(-Math.cos(tr), -Math.sin(tr), 0);
   const L = 1.05 * f.tail;
-  const tw = pl === undefined ? 1 : 1;
+  const tw = plan === 'picaflor' ? 0.6 : plan === 'gaviota' || plan === 'pinguino' ? 0.75 : 1;
   R.push({ c: tailPivot.clone().addScaledVector(tdir, L), w: 0.34 * tw, h: 0.025, zone: 'cola', wTail: 1, end: true });
   R.push({ c: tailPivot.clone().addScaledVector(tdir, L * 0.5), w: 0.27 * tw, h: 0.04, zone: 'cola', wTail: 1 });
   R.push({ c: tailPivot.clone().addScaledVector(tdir, 0.05), w: 0.2, h: 0.08, zone: 'cola', wTail: 0.7 });
   // cuerpo
-  for (const [s, k] of BODY_PROFILE) {
-    R.push({ c: C.clone().addScaledVector(d, s * B[0]), w: k * B[2], h: k * B[1], zone: 'cuerpo' });
+  const fb = FLAT_BELLY[plan] || 1;
+  for (const [s, k, lift = 0] of PROFILES[plan] || P0) {
+    R.push({ c: C.clone().addScaledVector(d, s * B[0]).add(new THREE.Vector3(0, lift * B[1], 0)), w: k * B[2], h: k * B[1], fb, zone: 'cuerpo' });
   }
   // cuello (mezcla) y cabeza: la cabeza mira al frente (+x)
   const neckFrom = C.clone().addScaledVector(d, 0.85 * B[0]);
   const nl = pl.neckLen ?? 0;
-  const nNeck = nl > 0.3 ? 3 : 1;
+  const nNeck = nl > 0.3 ? Math.min(6, Math.round(nl * 4)) : 1;
+  // cuello en S (flamenco, cisne, garza): los anillos siguen una curva; si no, recto
+  const dir = headBase.clone().sub(neckFrom), Ln = dir.length(), nd = dir.clone().normalize(), side = new THREE.Vector3(nd.y, -nd.x, 0);
+  const curve = S_NECK.has(plan) ? new THREE.CatmullRomCurve3([neckFrom.clone(), neckFrom.clone().addScaledVector(dir, 0.33).addScaledVector(side, Ln * 0.16),
+    neckFrom.clone().addScaledVector(dir, 0.7).addScaledVector(side, -Ln * 0.1), headBase.clone()]) : null;
   for (let i = 1; i <= nNeck; i++) {
     const k = i / (nNeck + 1);
-    R.push({ c: neckFrom.clone().lerp(headBase, k), w: hs * (0.72 - 0.1 * (nNeck > 1 ? 1 - k : 0)), h: hs * 0.78, zone: 'cuello', wHead: 0.25 + 0.5 * k });
+    const c = curve ? curve.getPoint(k) : neckFrom.clone().lerp(headBase, k);
+    const thin = nNeck > 1 ? 0.62 : 0.72;
+    R.push({ c, w: hs * thin, h: hs * (thin + 0.06), zone: 'cuello', wHead: 0.25 + 0.5 * k });
   }
   const hx = new THREE.Vector3(1, 0, 0);
   R.push({ c: headBase.clone().addScaledVector(hx, -0.6 * hs).add(new THREE.Vector3(0, 0.02, 0)), w: hs * 0.82, h: hs * 0.86, zone: 'cabeza', wHead: 1 });
@@ -62,8 +91,14 @@ function skeleton(pl, f, hs, headBase, bl, br) {
   R.push({ c: headBase.clone().add(new THREE.Vector3(0.52 * hs, -0.03, 0)), w: hs * 0.72, h: hs * 0.74, zone: 'cabeza', wHead: 1 });
   // pico: base y punta (la punta es un vértice)
   const beakBase = headBase.clone().add(new THREE.Vector3(0.88 * hs, -0.06, 0));
-  R.push({ c: beakBase, w: br * 1.05, h: br * 1.15, zone: 'pico', wHead: 1 });
-  const tip = beakBase.clone().add(new THREE.Vector3(bl, -0.04 - (pl.bentBill ? bl * 0.6 : 0), 0));
+  if (pl.bill) { // pico ancho y plano (pato, cisne): se mantiene ancho hasta la punta
+    R.push({ c: beakBase, w: br * 1.7, h: br * 0.75, zone: 'pico', wHead: 1 });
+    R.push({ c: beakBase.clone().add(new THREE.Vector3(bl * 0.8, -0.03, 0)), w: br * 1.6, h: br * 0.35, zone: 'pico', wHead: 1 });
+  } else {
+    const hook = pl.hookBill ? 1.6 : 1;
+    R.push({ c: beakBase, w: br * 1.05 * hook, h: br * 1.15 * hook, zone: 'pico', wHead: 1 });
+  }
+  const tip = beakBase.clone().add(new THREE.Vector3(pl.hookBill ? bl * 0.55 : bl, -0.04 - (pl.bentBill ? bl * 0.6 : 0) - (pl.hookBill ? bl * 0.45 : 0), 0));
   return { R, tip, tailPivot, C, beakBase };
 }
 
@@ -133,13 +168,13 @@ function paintSpecies(sp, P, layout) {
  */
 export function buildBirdOnePiece(sp, plan, ctx) {
   const { pl, f, hs, headBase, bl, br, legLen, P, wingGeo, wingLen, footGeo, tarsusGeo } = ctx;
-  const { R, tip, tailPivot, C } = skeleton(pl, f, hs, headBase, bl, br);
+  const { R, tip, tailPivot, C } = skeleton(pl, f, hs, headBase, bl, br, plan);
 
   // ---- malla: anillos + punta del pico; u por largo acumulado ----
   const rings = R.map((r, i) => {
     const prev = R[Math.max(0, i - 1)].c, next = i < R.length - 1 ? R[i + 1].c : tip;
     const axis = next.clone().sub(prev).normalize();
-    return { ...r, pts: ring(r.c, axis, r.w, r.h) };
+    return { ...r, pts: ring(r.c, axis, r.w, r.h, r.fb) };
   });
   const lens = [0];
   for (let i = 1; i < rings.length; i++) lens.push(lens[i - 1] + rings[i].c.distanceTo(rings[i - 1].c));
@@ -195,9 +230,21 @@ export function buildBirdOnePiece(sp, plan, ctx) {
 
   // mandíbula inferior (chica, para cantar), bajo el pico
   const mBeak = mat(plain, { tint: (P.beak[0] << 16) | (P.beak[1] << 8) | P.beak[2] });
-  const lower = new THREE.Mesh(new THREE.ConeGeometry(br * 0.7, bl * 0.8, 3).rotateZ(-Math.PI / 2).translate(bl * 0.4, 0, 0).scale(1, 0.4, 1), mBeak);
+  const pouch = pl.pouch ? [2.4, 0.9] : pl.bill ? [1.6, 0.25] : [0.7, 0.4];   // bolsa del pelícano / pico plano
+  const lower = new THREE.Mesh(new THREE.ConeGeometry(br * pouch[0], bl * 0.8, 3).rotateZ(-Math.PI / 2).translate(bl * 0.4, 0, 0).scale(1, pouch[1], 1),
+    pl.pouch ? mat(plain, { tint: 0xc89868 }) : mBeak);
   lower.position.set(0.88 * hs, -0.1, 0); lower.rotation.z = -0.15; head.add(lower); meshes.push(lower);
   const upper = new THREE.Group(); upper.rotation.z = 0; head.add(upper); // el pico superior es parte de la malla
+  // adornos de la cabeza: penacho (codorniz) y cresta (queltehue y otros)
+  if (pl.topknot) {
+    const k = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 0.05).translate(0, 0.22, 0), mat(plain, { tint: 0x201a18 }));
+    k.position.set(hs * 0.2, hs * 0.8, 0); k.rotation.z = -0.5; head.add(k); meshes.push(k);
+  }
+  if (pl.crest || sp.sciName === 'Vanellus chilensis') {
+    const c = P.back_dark;
+    const crest = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.04).translate(-0.25, 0, 0), mat(plain, { tint: (c[0] << 16) | (c[1] << 8) | c[2] }));
+    crest.position.set(-hs * 0.6, hs * 0.5, 0); crest.rotation.z = 0.35; head.add(crest); meshes.push(crest);
+  }
 
   // alas de vuelo: solo visibles al aletear
   const mWing = mat(ctx.wingTex, { twoSided: true });

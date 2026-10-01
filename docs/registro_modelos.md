@@ -92,7 +92,7 @@ Re-Volt que se usaron de referencia. Con ellas se arman 14 especies de plantas y
 
 ## Aves: antes y después
 
-Las aves se arman en `js/bird.js` por plan de cuerpo, con las proporciones de AVONET y la paleta aprobada
+Las aves se arman por plan de cuerpo (hoy en `js/bird1.js`, ver "Una sola pieza"), con las proporciones de AVONET y la paleta aprobada
 de cada especie. **Antes:** cuerpo, cabeza, ala y cola eran esferas y una caja. **Después:** piezas
 modeladas en Blender (`blender/aves_build.py` → `models/kit/ave_partes.glb`): cuerpo en gota, cabeza con
 frente, ala plana con las primarias en punta y cola en abanico, en el mismo espacio que las primitivas
@@ -100,18 +100,26 @@ frente, ala plana con las primarias en punta y cola en abanico, en el mismo espa
 ~220 triángulos por ave (antes 188). Hay piezas propias para paloma, gaviota, pingüino, flamenco, pato, pelícano, rapaz, picaflor y
 playero (abajo); loro, carpintero, codorniz y ñandú siguen con las del ave base.
 
-### Una sola pieza (versión vigente para paseriformes)
+### Una sola pieza (versión vigente, todos los planes)
 
 Las piezas de Blender (arriba) no cambiaron la construcción: seguía siendo un **ensamble** (cabeza = otra
 esfera encajada, pico = cono pegado, alas y cola = placas que sobresalen, 5–6 texturas). Las referencias
-(Poly Pizza, Half-Life 2) son **una malla continua con una textura**, igual que Poroto N64. Ahora cada ave
-de los planes paseriforme y cola alta es **una sola malla** generada en `js/bird1.js`: loft de 6 lados de
+(Poly Pizza, Half-Life 2) son **una malla continua con una textura**, igual que Poroto N64. Ahora cada ave es **una sola malla** generada en `js/bird1.js`: loft de 6 lados de
 la punta de la cola al pico (cola → cuerpo → cuello → cabeza → pico), **una textura de 64×32** pintada
 encima (ojo, máscara, garganta, ala plegada, patrones y acentos de la paleta) y **168 triángulos**. La
 cabeza y la cola se animan deformando solo sus vértices (mezcla en el cuello); las alas de vuelo aparecen
 solo al aletear. Columnas: PS1 · por piezas (PR #10) · una pieza.
 
 ![Paseriformes: PS1, por piezas y una sola pieza](registro/img/aves_una_pieza_paseriformes.jpg)
+
+Después se extendió a **todos los planes** con un perfil por plan tomado de las referencias: pecho profundo
+(paloma), torpedo (gaviota), bote de vientre plano con popa levantada y pico ancho (pato, cisne), cuerpo
+pesado con bolsa (pelícano), hombros anchos (rapaz), huevo erguido (pingüino), cuello en S continuo
+(flamenco, cisne, garza), cuello largo recto (ñandú, pelícano, cormorán), pico ganchudo (loro) y adornos
+(penacho de la codorniz, cresta del queltehue).
+
+![Rapaz, pato, garza, pelícano, cisnes, cóndor y flamenco de una pieza](registro/img/aves_una_pieza_planes_1.jpg)
+![Loro, carpintero, ñandú y pingüino de una pieza](registro/img/aves_una_pieza_planes_2.jpg)
 
 ### Planes propios: paloma y gaviota
 

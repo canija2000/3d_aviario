@@ -10,7 +10,8 @@ import { buildBirdOnePiece } from './bird1.js';
 
 // Planes que ya se construyen como una sola pieza (js/bird1.js). setOnePiece(false) vuelve al ave por piezas
 // (lo usa docs/registro/aves.html para comparar).
-const ONE_PIECE = new Set(['paseriforme', 'cola_alta']);
+const ONE_PIECE = new Set(['paseriforme', 'cola_alta', 'paloma', 'playero', 'picaflor', 'gaviota', 'pelicano', 'cormoran', 'garza',
+  'pato', 'rapaz', 'codorniz', 'nandu', 'pinguino', 'flamenco', 'cisne', 'loro', 'carpintero']);
 let onePieceOn = true;
 export function setOnePiece(on) { onePieceOn = on; }
 
