@@ -137,3 +137,20 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ground
   font-family: var(--read); font-weight: 700; font-size: 13px; padding: 1px 6px; border-radius: 3px;
   background: rgba(8, 10, 16, 0.72); border-bottom: 2px solid currentColor; text-shadow: 0 1px 0 #000; }
 .blabel.sing::before { content: "♪ "; }
+
+/* Mini-mapa (estilo OoT): mapa local, zonas de la región y franja de Chile */
+.minimap { position: absolute; bottom: 12px; left: 12px; width: 166px; padding: 6px 8px 8px; font-size: 13px; z-index: 5; }
+.mm-head { all: unset; cursor: pointer; display: flex; gap: 6px; width: 100%; font-family: var(--pix); font-size: 13px; letter-spacing: 0.03em; }
+.mm-head #mm-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.minimap.closed .mm-body { display: none; }
+.minimap.closed .chev { transform: rotate(-90deg); }
+#mm-local { display: block; width: 150px; height: 150px; margin-top: 4px; image-rendering: pixelated; border: 1px solid var(--win-inner); }
+#mm-zones { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
+#mm-zones span { font-family: var(--pix); font-size: 11px; padding: 0 4px; border: 1px solid var(--win-inner); border-radius: 3px; color: var(--ink-dim); }
+#mm-zones span.here { color: #10131c; background: var(--yes); border-color: var(--yes); }
+#mm-chile { display: block; width: 100%; height: auto; margin-top: 5px; }
+#mm-chile path { fill: #4a5070; stroke: #10131c; stroke-width: .6; }
+#mm-chile path.on { fill: #a08440; }
+#mm-chile path.here { fill: var(--yes); }
+#mm-chile circle { fill: #ff6a3a; stroke: #10131c; stroke-width: 1.5; }
+@media (max-width: 640px) { .minimap { width: 120px; } #mm-local { width: 104px; height: 104px; } }

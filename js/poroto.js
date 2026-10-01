@@ -111,7 +111,20 @@ export async function loadPoroto() {
     shadow.visible = root.visible;
     const bob = Math.sin(P.t * 12);
     let waddle = 0, sleep = false;
-    if (P.state === 'walk' && P.target) {
+    if (P.drive && P.drive.lengthSq() > 0.01) {
+      // control directo con las flechas (P.drive = dirección en el plano x-z, relativa al mundo)
+      P.target = null; P.onArrive = null; P.idleFor = 0; P.state = 'walk';
+      const step = P.speed * dt * Math.min(1, P.drive.length());
+      const nx = P.pos.x + P.drive.x / P.drive.length() * step, nz = P.pos.z + P.drive.y / P.drive.length() * step;
+      // si choca, se desliza por el borde del obstáculo en vez de quedar trabado
+      if (!blocked || !blocked(nx, nz)) { P.pos.x = nx; P.pos.z = nz; }
+      else if (!blocked(nx, P.pos.z)) P.pos.x = nx;
+      else if (!blocked(P.pos.x, nz)) P.pos.z = nz;
+      const want = Math.atan2(-P.drive.y, P.drive.x);
+      const dh = ((want - P.heading + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      P.heading += dh * Math.min(1, dt * 12);
+      waddle = bob;
+    } else if (P.state === 'walk' && P.target) {
       const d = P.target.clone().sub(P.pos); d.y = 0;
       const len = d.length();
       if (len < 0.1) {
@@ -125,6 +138,7 @@ export async function loadPoroto() {
         waddle = bob;
       }
     } else {
+      if (P.state === 'walk') P.state = 'idle';
       P.idleFor += dt;
       if (P.idleFor > 25 && P.writing <= 0) sleep = true;
       if (P.look) {

@@ -6,6 +6,7 @@ import { loadWorld, loadRegion, loadJSON, DATA_BASE, CLASS_LABEL, birdDialog, we
 import { buildScene, signpost, WORLD } from './scene.js';
 import { loadPoroto } from './poroto.js';
 import { CAMERA, PORORO_BUBBLE_Y } from './scale.js';
+import { createMinimap } from './minimap.js';
 import { Director } from './aviary.js';
 import { buildBird } from './bird.js';
 import { unlockAudio, setListener, setMuted, blip, setAmbience, duckAmbience } from './audio.js';
@@ -43,6 +44,7 @@ function loadBook() {
 function saveBook() { try { localStorage.setItem('aviario.libreta', JSON.stringify([...G.book])); } catch { /* sin almacenamiento */ } }
 
 const poroto = await loadPoroto();
+const minimap = createMinimap();
 const bubble = document.createElement('div');
 bubble.className = 'tip'; bubble.style.setProperty('--tip', '#f4d35e'); bubble.hidden = true; document.body.appendChild(bubble);
 let bubbleT = 0;
@@ -230,7 +232,9 @@ function buildHub() {
     }
     return { p: best, d: bd };
   };
-  return { scene, portals, snap, rmPoint: pts[regs.indexOf(rm)], heightAt: () => 0 };
+  // región más cercana a un punto del camino (para el mini-mapa)
+  const regionAt = (x, z) => regs[pts.reduce((bi, p, i) => (Math.hypot(p.x - x, p.z - z) < Math.hypot(pts[bi].x - x, pts[bi].z - z) ? i : bi), 0)];
+  return { scene, portals, snap, regionAt, rmPoint: pts[regs.indexOf(rm)], heightAt: () => 0 };
 }
 
 async function enterHub() {
@@ -238,17 +242,18 @@ async function enterHub() {
   setAmbience(null);
   clearLabels();
   G.hubWorld = buildHub();
+  G.hubRegion = null;
   G.world = G.hubWorld.scene;
   applyLight('primavera', 0x05060b, 30, 90);
   poroto.pos.copy(G.hubWorld.rmPoint); poroto.pos.x -= 0.5;
   poroto.drop = 14; poroto.heading = -Math.PI / 2;
   poroto.season = 'primavera';
-  G.cam.dist = CAMERA.hub.dist; G.cam.pitch = CAMERA.hub.pitch; G.cam.yaw = -Math.PI / 2 + 0.5; G.cam.distGoal = G.cam.pitchGoal = G.cam.yawGoal = undefined;
+  G.cam.dist = CAMERA.hub.dist; G.cam.pitch = CAMERA.hub.pitch; G.cam.yaw = CAMERA.hub.yaw; G.cam.distGoal = G.cam.pitchGoal = G.cam.yawGoal = undefined;
   G.cam.target.copy(poroto.pos);
   $('hud').hidden = true;
   await fade(false);
   const open = G.index.regions.filter(r => r.terrainFile).map(r => `<b>${r.name}</b>`);
-  toast(`Camina hasta un portal o abre el <b>mapa</b> (M) para viajar. Se puede entrar a ${open.join(', ')}.`, 6);
+  toast(`Camina con las <b>flechas</b> hasta un portal (WASD mueve la cámara) o abre el <b>mapa</b> (M) para viajar. Se puede entrar a ${open.join(', ')}.`, 7);
 }
 
 function portalClicked(p) {
@@ -311,6 +316,8 @@ async function loadSceneKey(key, fromKey, withFade = true) {
     G.exits.push({ key: k, sign, proxy, angle: a });
   }
   // llegada: junto al letrero del cuarto de origen, o al centro
+  minimap.setScene({ sc, exitList: G.exits, zones: sceneOrder(), current: key, regionName: G.reg.meta.name,
+    chileMap: G.chileMap, regionCode: G.reg.meta.code, labelOf: k => SCENE_LABEL[k] });
   const back = G.exits.find(e => e.key === fromKey);
   if (back) { poroto.pos.set(back.sign.position.x * 0.6, 0, back.sign.position.z * 0.6); }
   else poroto.pos.set(0, 0, 0);
@@ -581,20 +588,60 @@ canvas.addEventListener('pointerdown', e => { if (e.button === 2) { rdrag = { x:
 canvas.addEventListener('pointermove', e => {
   if (!rdrag) return;
   G.cam.yawGoal = (G.cam.yawGoal ?? G.cam.yaw) + (e.clientX - rdrag.x) * 0.006;
-  G.cam.pitchGoal = Math.min(1.25, Math.max(0.2, (G.cam.pitchGoal ?? G.cam.pitch) + (e.clientY - rdrag.y) * 0.004));
+  G.cam.pitchGoal = Math.min(CAMERA.maxPitch, Math.max(CAMERA.minPitch, (G.cam.pitchGoal ?? G.cam.pitch) + (e.clientY - rdrag.y) * 0.004));
   rdrag = { x: e.clientX, y: e.clientY };
 });
 canvas.addEventListener('pointerup', e => { if (e.button === 2) rdrag = null; });
 window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
 window.addEventListener('blur', () => keys.clear());
+// Flechas: Poroto camina en relación a la cámara (arriba = alejarse de ella).
+function driveFromKeys() {
+  const f = (keys.has('arrowup') ? 1 : 0) - (keys.has('arrowdown') ? 1 : 0);
+  const r = (keys.has('arrowright') ? 1 : 0) - (keys.has('arrowleft') ? 1 : 0);
+  if ((!f && !r) || poroto.travel || poroto.mapHeld || !$('travel').hidden || G.traveling) { poroto.drive = null; return; }
+  if (G.dialogOpen) closeDialog();
+  const fx = -Math.cos(G.cam.yaw), fz = Math.sin(G.cam.yaw); // hacia donde mira la cámara
+  (poroto.drive ||= new THREE.Vector2()).set(fx * f - fz * r, fz * f + fx * r);
+  marker.visible = false;
+}
+// Después de mover: no salirse del camino ni de la escena, y entrar a portales y senderos caminando.
+function afterDrive() {
+  if (!poroto.drive) return;
+  if (G.mode === 'hub') {
+    const { p, d } = G.hubWorld.snap(poroto.pos.x, poroto.pos.z);
+    if (d > 1.3) { poroto.pos.x = p.x + (poroto.pos.x - p.x) * 1.3 / d; poroto.pos.z = p.z + (poroto.pos.z - p.z) * 1.3 / d; }
+    const near = G.hubWorld.portals.find(pr => {
+      const g = pr.userData.portal.gem.position;
+      return Math.hypot(g.x - 3.2 - poroto.pos.x, g.z - poroto.pos.z) < 1.1;
+    });
+    if (near && near !== G.nearPortal) { keys.clear(); poroto.drive = null; portalClicked(near.userData.portal); }
+    G.nearPortal = near || null;
+  } else if (G.mode === 'scene') {
+    const lim = G.sc.half - 2;
+    poroto.pos.x = Math.max(-lim, Math.min(lim, poroto.pos.x)); poroto.pos.z = Math.max(-lim, Math.min(lim, poroto.pos.z));
+    const ex = G.exits.find(e => Math.hypot(e.sign.position.x * 0.93 - poroto.pos.x, e.sign.position.z * 0.93 - poroto.pos.z) < 1.6);
+    if (ex && !G.traveling) {
+      G.traveling = true; keys.clear(); poroto.drive = null;
+      travel(ex.key).finally(() => { G.traveling = false; });
+    }
+  }
+}
 function steerCamera(dt) {
   const c = G.cam;
   c.yawGoal ??= c.yaw; c.pitchGoal ??= c.pitch; c.distGoal ??= c.dist;
-  const turn = (keys.has('e') || keys.has('arrowright') ? 1 : 0) - (keys.has('q') || keys.has('arrowleft') ? 1 : 0);
-  const tilt = (keys.has('arrowup') ? 1 : 0) - (keys.has('arrowdown') ? 1 : 0);
+  // A/D (o Q/E) giran la cámara alrededor de Poroto; W/S la acercan y alejan
+  const turn = (keys.has('d') || keys.has('e') ? 1 : 0) - (keys.has('a') || keys.has('q') ? 1 : 0);
+  const zoom = (keys.has('s') ? 1 : 0) - (keys.has('w') ? 1 : 0);
   c.yawVel = (c.yawVel ?? 0) + (turn * 1.6 - (c.yawVel ?? 0)) * Math.min(1, dt * 5); // acelera y frena suave
   c.yawGoal += c.yawVel * dt;
-  c.pitchGoal = Math.min(1.25, Math.max(0.2, c.pitchGoal + tilt * 0.8 * dt));
+  c.distGoal = Math.min(CAMERA.maxDist, Math.max(CAMERA.minDist, c.distGoal * (1 + zoom * 1.2 * dt)));
+  // al caminar hacia adelante con las flechas, la cámara se acomoda sola detrás de Poroto (como en OoT)
+  const fwdKey = (keys.has('arrowup') ? 1 : 0) - (keys.has('arrowdown') ? 0.4 : 0);
+  if (!turn && fwdKey > 0 && poroto.drive) {
+    const behind = poroto.heading + Math.PI;
+    const d = ((behind - c.yawGoal + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    c.yawGoal += Math.max(-1, Math.min(1, d)) * CAMERA.follow * dt;
+  }
   const k = 1 - Math.exp(-dt * 8);
   c.yaw += (c.yawGoal - c.yaw) * k;
   c.pitch += (c.pitchGoal - c.pitch) * k;
@@ -605,7 +652,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeDialog(); $('panel').hidden = true; if (!$('travel').hidden) closeTravelMap(); }
   if ((e.key === 'm' || e.key === 'M') && $('travel').hidden) openTravelMap();
   if ((e.key === 'n' || e.key === 'N') && G.mode === 'scene') toggleNames();
-  if (['q', 'e', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(e.key.toLowerCase())) {
+  if (['q', 'e', 'w', 'a', 's', 'd', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(e.key.toLowerCase())) {
     if (e.key.startsWith('Arrow')) e.preventDefault();
     keys.add(e.key.toLowerCase());
   }
@@ -758,7 +805,15 @@ function frame(now) {
     // no atravesar edificios ni meterse al mar (terreno bajo el nivel del agua)
     const blocked = G.mode === 'scene' ? (x, z) => G.sc.obstacles.some(o => Math.hypot(o.x - x, o.z - z) < o.r)
       || (G.sc.seaY != null && G.sc.heightAt(x, z) < G.sc.seaY - 0.02) : null;
+    driveFromKeys();
     const st = poroto.update(dt, heightAt, blocked);
+    afterDrive();
+    if (G.mode === 'scene') minimap.update(dt, poroto, G.director.agents);
+    else if ((G.hubRegionT = (G.hubRegionT ?? 0) - dt) <= 0) {
+      G.hubRegionT = 0.4;
+      const r = G.hubWorld.regionAt(poroto.pos.x, poroto.pos.z);
+      if (r.code !== G.hubRegion) { G.hubRegion = r.code; minimap.setHub({ chileMap: G.chileMap, regionCode: r.code, regionName: r.name }); }
+    }
     if (poroto.drop > 0) {
       poroto.drop = Math.max(0, poroto.drop - dt * 18);
       poroto.root.position.y += poroto.drop;

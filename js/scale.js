@@ -11,7 +11,10 @@ export const BIRD_MODEL_LENGTH = 3.6;
 export const BIRD_PICK_RADIUS = 0.35; // radio mínimo (m) del área para hacer clic en un ave
 
 export function birdScale(sp) {
-  const len = BIRD_REF_LENGTH * (sp.morphology?.scale ?? 1) * BIRD_EXAGGERATION;
+  // la estimación desde la masa sobreestima a las aves pesadas (pilpilén, gaviotas): a ellas se les exagera menos
+  const k = sp.morphology?.scale ?? 1;
+  const exag = Math.max(1.1, Math.min(BIRD_EXAGGERATION, BIRD_EXAGGERATION - 0.25 * (k - 1)));
+  const len = BIRD_REF_LENGTH * k * exag;
   return Math.max(0.05, Math.min(0.8, len / BIRD_MODEL_LENGTH));
 }
 
@@ -40,8 +43,10 @@ export function propFactor(id, kind) {
 export const MAX_RELIEF = 8;
 
 // Cámara en tercera persona, cercana a Poroto.
+// La cámara va baja, casi a la altura de los ojos de Poroto (≈0,7 m), y lo sigue por detrás.
 export const CAMERA = {
-  scene: { dist: 6.5, pitch: 0.55 }, hub: { dist: 12, pitch: 0.7 },
-  minDist: 3, maxDist: 16, targetY: 0.55,
+  scene: { dist: 5, pitch: 0.2 }, hub: { dist: 9, pitch: 0.55, yaw: Math.PI }, // en el menú, desde el oeste: el camino y los portales detrás de Poroto
+  minDist: 2.5, maxDist: 14, minPitch: 0.05, maxPitch: 1.25, targetY: 0.75,
+  follow: 1.6, // rad/s con que la cámara se acomoda detrás de Poroto cuando camina hacia adelante
 };
 export const PORORO_BUBBLE_Y = 1.45; // altura del globito de diálogo sobre los pies
