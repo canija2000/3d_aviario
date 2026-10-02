@@ -63,8 +63,8 @@ export const PLANS = {
   rapaz: { tilt: 0.45, tail: 0.25, head: 0.4, legs: 0.9, body: [1.3, 0.9, 0.85], neck: 0.05, neckLen: 0.2, wing: 1.8, soar: true },
   codorniz: { tilt: 0.1, tail: 0.1, head: 0.55, legs: 0.7, body: [1.2, 0.95, 0.9], neck: 0.05, topknot: true },
   // Magallanes
-  nandu: { tilt: 0.3, tail: 0.1, head: 0.4, legs: 3.0, body: [1.3, 1.1, 1.0], neck: 0.1, neckLen: 1.25, wing: 0.55, noFly: true, stride: 2.2 },
-  pinguino: { tilt: 1.35, tail: 1.0, tailPos: [-0.5, 0.12], head: 0.5, legs: 0.35, body: [1.2, 0.85, 0.8], neck: 0, wing: 0.8, swim: true, noFly: true, waddle: true, stride: 0.6 },
+  nandu: { tilt: 0.3, tail: 0.1, head: 0.34, legs: 3.0, legThick: 3.2, body: [1.3, 1.1, 1.0], neck: 0.1, neckLen: 1.45, wing: 0.55, noFly: true, stride: 2.2 },
+  pinguino: { tilt: 1.35, tail: 1.0, tailPos: [-0.5, 0.12], head: 0.5, legs: 0.35, legThick: 1.8, body: [1.2, 0.85, 0.8], neck: 0, wing: 0.8, swim: true, noFly: true, waddle: true, stride: 0.6, flippers: true },
   flamenco: { tilt: 0.5, tail: 0.2, head: 0.35, legs: 3.0, body: [1.05, 0.7, 0.62], neck: 0.1, neckLen: 1.3, wing: 1.3, bentBill: true },
   cisne: { tilt: 0.05, tail: 0.15, head: 0.42, legs: 0.45, body: [1.5, 0.85, 1.0], neck: 0.1, neckLen: 1.2, wing: 1.3, bill: true, swim: true },
   loro: { tilt: 0.7, tail: 0.5, head: 0.6, legs: 0.7, body: [1.0, 0.85, 0.8], neck: 0, hookBill: true },
@@ -180,8 +180,8 @@ export function buildBird(sp, plan = 'paseriforme') {
     const wingGeo1 = sideUV(part('ala', () => new THREE.SphereGeometry(1, 5, 3).scale(1, 0.4, 0.1).translate(-0.35, 0, 0), plan).scale(wingLen1, 1, 1));
     return buildBirdOnePiece(sp, plan, {
       pl, f: { tail: fTail }, hs: hs1, headBase: headBase1, bl: bl1, br: br1, legLen: legLen1,
-      P: { ...GRAY, ...(sp.palette || {}) }, wingTex: T.wing, wingGeo: wingGeo1, wingLen: wingLen1, footGeo,
-      tarsusGeo: new THREE.CylinderGeometry(0.055, 0.045, legLen1, 3, 1, true).translate(0, -legLen1 / 2, 0),
+      P: { ...GRAY, ...(sp.palette || {}) }, wingTex: T.wing, wingGeo: wingGeo1, wingLen: wingLen1, footGeo, hwi,
+      tarsusGeo: new THREE.CylinderGeometry(0.055 * (pl.legThick ?? 1), 0.045 * (pl.legThick ?? 1), legLen1, pl.legThick > 1.5 ? 5 : 3, 1, true).translate(0, -legLen1 / 2, 0),
     });
   }
   const meshes = [];

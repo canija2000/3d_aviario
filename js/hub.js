@@ -337,7 +337,7 @@ export function buildHub({ index, relief, label, poroto, stampOf = () => '' }) {
       const plan = planFor(base);
       const m = buildBird(sp, plan);
       const big = base.morphology?.scale ?? 1;
-      const s = birdScale(base) * (big > 4 ? 0.7 : big > 2 ? 1 : HUB_BIRD_SIZE); // las chicas se agrandan para leerse; las muy grandes se achican
+      const s = birdScale(base, plan) * (big > 2 ? 1 : HUB_BIRD_SIZE); // las chicas se agrandan para leerse
       m.group.scale.setScalar(s);
       const side = k ? 1 : -1;
       const pos = door.localToWorld(new THREE.Vector3(side * (2.6 + R() * 0.6), 0, 1.3 + R() * 0.8));

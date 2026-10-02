@@ -10,11 +10,15 @@ export const BIRD_EXAGGERATION = 1.75;
 export const BIRD_MODEL_LENGTH = 3.6;
 export const BIRD_PICK_RADIUS = 0.35; // radio mínimo (m) del área para hacer clic en un ave
 
-export function birdScale(sp) {
-  // la estimación desde la masa sobreestima a las aves pesadas (pilpilén, gaviotas): a ellas se les exagera menos
+// Cuerpos densos: a igual masa son más cortos (patos, cisnes, ñandú, pingüinos).
+const DENSE = { pato: 0.85, cisne: 0.9, nandu: 0.7, pinguino: 0.85 };
+
+export function birdScale(sp, plan) {
+  // la estimación desde la masa sobreestima a las aves pesadas (pilpilén, gaviotas, cóndor): a ellas se les
+  // exagera menos y el largo crece más lento que la raíz cúbica de la masa (si no, quedan gigantes)
   const k = sp.morphology?.scale ?? 1;
   const exag = Math.max(1.1, Math.min(BIRD_EXAGGERATION, BIRD_EXAGGERATION - 0.25 * (k - 1)));
-  const len = BIRD_REF_LENGTH * k * exag;
+  const len = BIRD_REF_LENGTH * (k > 1 ? k ** 0.85 : k) * exag * (DENSE[plan] ?? 1);
   return Math.max(0.05, Math.min(0.8, len / BIRD_MODEL_LENGTH));
 }
 
