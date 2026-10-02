@@ -25,7 +25,11 @@ genera el repo principal.
    (`data/game/chile-relief.json`, generado con `python3 scripts/build_relief.py` desde AWS Terrain
    Tiles; 1 unidad ≈ 18,5 km en planta y 1 km en altura) flota en el vacío. Poroto camina por la
    Ruta 5 y la Carretera Austral, entre los Andes y la Cordillera de la Costa, y cada región tiene una
-   puerta del material de su zona (adobe, colonial, tejuela, chapa) con hitos con nombre.
+   puerta propia (js/doors.js: iglesia de Parinacota, Humberstone, La Portada, bocamina, observatorio,
+   casas de Valparaíso, Castillo Hidalgo, hacienda, parrón del Maule, Quinchamalí, pique de Lota, ruka
+   y rewe, fuerte de Niebla, iglesia de Chiloé, capillas de mármol, Torres del Paine), dos aves
+   emblemáticas de la zona a su lado (js/hub_birds.js) e hitos con nombre. La Citroneta (js/car.js,
+   tecla E) recorre el pasillo más rápido que corriendo.
 3. **Entrar a una región.** Clic en el portal y elección del año: por defecto
    el **año típico**; también 2017–2024.
 4. **Cartel de bienvenida** al entrar, generado desde los datos. Ejemplo:
@@ -52,6 +56,16 @@ genera el repo principal.
    más me registran es en Aysén…".
 9. **Point & click:** el avatar camina al punto clicado. Se recomienda una
    cámara fija o semifija sobre el diorama, no libre.
+
+### Juego (implementado, js/photo.js)
+
+- **Modo foto (F):** Poroto mira por la cámara en primera persona. Puntaje 0–100 y 1 a 3 estrellas
+  según tamaño del ave en cuadro, centrado y acción (cantando, en vuelo, rara). Se guarda la mejor
+  foto de cada especie (miniatura 160×120) y aparece en la libreta.
+- **Pasaporte (P):** un sello por región. Bronce: un tercio de sus aves destacadas vistas; plata:
+  todas; oro: una foto ★★ o mejor de cada una. El sello se ve junto al nombre de la puerta en el
+  pasillo. Desde el mapa (M) se puede volver al pasillo.
+- El progreso vive en `localStorage` (`aviario.album`, `aviario.vistas`, `aviario.regiones`).
 
 ### Ideas complementarias (priorizar después del MVP)
 

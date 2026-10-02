@@ -11,7 +11,9 @@ import { createMinimap } from './minimap.js';
 import { loadKit } from './kit.js';
 import { Director } from './aviary.js';
 import { buildBird } from './bird.js';
-import { unlockAudio, setListener, setMuted, blip, setAmbience, duckAmbience } from './audio.js';
+import { unlockAudio, setListener, setMuted, blip, setAmbience, duckAmbience, engine, horn } from './audio.js';
+import { CAR } from './car.js';
+import { progress, rememberRegion, markSeen, regionStatus, TIERS, scorePhoto, starText, captureThumb, savePhoto } from './photo.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('c');
@@ -148,7 +150,7 @@ function updateBirdLabels() {
     _b.copy(a.m.group.position); _b.y += (a.m.height ?? 2.5) * a.s + 0.25;
     const d = camera.position.distanceTo(_b);
     _b.project(camera);
-    const show = showNames && a.state !== 'wait' && _b.z < 1 && Math.abs(_b.x) < 1.05 && Math.abs(_b.y) < 1.05 && d < 38;
+    const show = showNames && !G.photo && a.state !== 'wait' && _b.z < 1 && Math.abs(_b.x) < 1.05 && Math.abs(_b.y) < 1.05 && d < 38;
     el.hidden = !show;
     if (!show) continue;
     el.style.left = ((_b.x + 1) / 2 * window.innerWidth) + 'px';
@@ -172,15 +174,21 @@ function updateLabels() {
 }
 
 // ------------------------------------------------------------------ MENÚ DE REGIONES (js/hub.js)
-async function enterHub() {
+async function enterHub(from = 'CL-RM') {
   G.mode = 'hub';
   setAmbience(null);
   clearLabels();
-  G.hubWorld = buildHub({ index: G.index, relief: G.relief, label: addLabel, poroto });
+  const stampOf = code => { const st = regionStatus(code)?.stamp; return st ? ` <span style="color:${st.color}" title="Sello de ${st.label.toLowerCase()}">●</span>` : ''; };
+  G.hubWorld = buildHub({ index: G.index, relief: G.relief, label: addLabel, poroto, stampOf });
+  G.nearPortal = null;
   G.hubRegion = null;
   G.world = G.hubWorld.scene;
   applyLight('primavera', 0x070912, 26, 80);
-  poroto.pos.copy(G.hubWorld.spawn('CL-RM'));
+  poroto.pos.copy(G.hubWorld.spawn(from));
+  G.driving = false; poroto.seated = false;
+  G.hubWorld.park(from);
+  G.carHint = addLabel('<b>E</b>: manejar la Citroneta', G.hubWorld.car.group.position.clone().add(new THREE.Vector3(0, 1.8, 0)), '#f4d35e', 'hito', 7);
+  poroto.root.visible = true; poroto.shadow.visible = true; // al volver de una región, sale del mapa
   poroto.drop = 14; poroto.heading = Math.PI / 2; // mirando al norte, por el pasillo
   poroto.season = 'primavera';
   G.cam.dist = CAMERA.hub.dist; G.cam.pitch = CAMERA.hub.pitch; G.cam.yaw = CAMERA.hub.yaw; G.cam.distGoal = G.cam.pitchGoal = G.cam.yawGoal = undefined;
@@ -188,7 +196,7 @@ async function enterHub() {
   $('hud').hidden = true;
   await fade(false);
   const open = G.index.regions.filter(r => r.terrainFile).map(r => `<b>${r.name}</b>`);
-  toast(`Chile es un pasillo entre los Andes y el mar: camina con las <b>flechas</b> (espacio para correr) hasta la puerta de una región, o abre el <b>mapa</b> (M) para viajar. Están abiertas ${open.join(', ')}.`, 8);
+  toast(`Chile es un pasillo entre los Andes y el mar: camina con las <b>flechas</b> (espacio para correr) hasta la puerta de una región, o abre el <b>mapa</b> (M) para viajar. Están abiertas ${open.join(', ')}. La <b>Citroneta</b> te espera al lado del camino (E para subir). <b>P</b>: pasaporte.`, 9);
 }
 
 function portalClicked(p) {
@@ -205,12 +213,17 @@ function portalClicked(p) {
 // ------------------------------------------------------------------ REGIÓN Y ESCENAS
 async function enterRegion(code, opts = {}) {
   if (opts.year !== undefined) G.year = opts.year;
+  if (G.driving) leaveCar();
   $('toast').hidden = true;
+  exitPhoto();
   await fade(true, 'Cargando la región…');
   G.reg = await loadRegion(G.index, code);
   if (G.year && !G.reg.region.years?.[G.year]) G.year = null;
   try { G.props = await loadJSON(DATA_BASE + `props-${code}.json`); } catch { G.props = null; }
   G.feat = featuredIn(G.index, G.reg.region);
+  const featSids = Object.keys(G.reg.region.featured || {}).map(Number);
+  if (!progress.seen[code]) for (const sid of featSids) if (G.book.has(sid)) markSeen(code, sid); // libreta antigua (sin región)
+  rememberRegion(code, featSids);
   G.director = new Director({ index: G.index, region: G.reg.region, regionId: G.reg.meta.id, regionCode: code, root: null, onSing, year: G.year });
   G.mode = 'scene';
   await loadSceneKey(sceneOrder()[0], null, false);
@@ -355,7 +368,9 @@ function updateHud() {
   }
   svg += `<text x="0" y="3" text-anchor="middle" font-size="8" fill="#eef1f8" font-family="monospace">${G.month + 1}</text>`;
   w.innerHTML = svg;
-  $('book-n').textContent = `${featuredList().filter(sci => G.book.has(G.index.bySci.get(sci)?.id)).length}/${featuredList().length}`;
+  const st = regionStatus(meta.code);
+  $('book-n').textContent = st ? `${st.nSeen}/${st.n}` : '';
+  $('b-book').style.borderColor = st?.stamp?.color || '';
   $('b-pause').textContent = G.paused ? '▶' : '⏸';
   $('b-pause').title = G.paused ? 'Reanudar el tiempo' : 'Pausar el tiempo';
 }
@@ -480,10 +495,10 @@ function setHover(h, ev) {
 
 canvas.addEventListener('pointermove', ev => {
   lastPointer = ev;
-  if (G.mode === 'scene' || G.mode === 'hub') setHover(pick(ev), ev);
+  if ((G.mode === 'scene' || G.mode === 'hub') && !G.photo) setHover(pick(ev), ev);
 });
 canvas.addEventListener('pointerdown', ev => {
-  if (ev.button !== 0 || (G.mode !== 'scene' && G.mode !== 'hub')) return;
+  if (ev.button !== 0 || (G.mode !== 'scene' && G.mode !== 'hub') || G.photo) return;
   if (G.dialogOpen) closeDialog();
   // Poroto se mueve solo con las flechas; el clic sirve para mirar aves.
   const h = pick(ev);
@@ -496,6 +511,7 @@ const keys = new Set();
 let rdrag = null;
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
+  if (G.photo) { G.photo.fov = Math.min(55, Math.max(8, G.photo.fov * (1 + Math.sign(e.deltaY) * 0.12))); return; }
   G.cam.distGoal = Math.min(CAMERA.maxDist, Math.max(CAMERA.minDist, (G.cam.distGoal ?? G.cam.dist) * (1 + Math.sign(e.deltaY) * 0.12)));
 }, { passive: false });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -513,12 +529,64 @@ window.addEventListener('blur', () => keys.clear());
 function driveFromKeys() {
   const f = (keys.has('arrowup') ? 1 : 0) - (keys.has('arrowdown') ? 1 : 0);
   const r = (keys.has('arrowright') ? 1 : 0) - (keys.has('arrowleft') ? 1 : 0);
-  if ((!f && !r) || poroto.travel || poroto.mapHeld || !$('travel').hidden || G.traveling) { poroto.drive = null; return; }
+  if (G.driving) return driveCar(f, r);
+  if ((!f && !r) || poroto.travel || poroto.mapHeld || !$('travel').hidden || G.traveling || G.photo) { poroto.drive = null; return; }
   if (G.dialogOpen) closeDialog();
   const fx = -Math.cos(G.cam.yaw), fz = Math.sin(G.cam.yaw); // hacia donde mira la cámara
   (poroto.drive ||= new THREE.Vector2()).set(fx * f - fz * r, fz * f + fx * r);
   poroto.run = keys.has(' '); // espacio: correr
 }
+// ------------------------------------------------------------------ la Citroneta (pasillo)
+// E: subir o bajar · flechas: manejar (relativas a la cámara, como caminar) · espacio: acelerar a
+// fondo · H: bocina. Acelera y frena de a poco, y gira con un radio, no en el lugar.
+function nearCar() {
+  const c = G.hubWorld?.car.group.position;
+  return c && Math.hypot(c.x - poroto.pos.x, c.z - poroto.pos.z) < 2.2;
+}
+function enterCar() {
+  const car = G.hubWorld.car;
+  G.driving = true; poroto.seated = true; car.v = 0; car.h = car.group.rotation.y;
+  poroto.pos.x = car.group.position.x; poroto.pos.z = car.group.position.z; poroto.heading = car.h;
+  poroto.binoc = 0; poroto.look = null;
+  if (G.carHint) G.carHint.el.style.display = 'none';
+  G.cam.distGoal = 12; G.cam.pitchGoal = 0.45;
+  blip(330, 0.05); setTimeout(() => horn(), 250);
+  say('¡Vamos en la Citroneta!', 1.8);
+}
+function leaveCar() {
+  const car = G.hubWorld?.car;
+  G.driving = false; poroto.seated = false; poroto.drive = null; poroto.speed = 2.6;
+  engine(null);
+  if (car) { car.v = 0; poroto.pos.x += Math.sin(car.h) * 1.1; poroto.pos.z += Math.cos(car.h) * 1.1; } // se baja por el costado
+  G.cam.distGoal = CAMERA.hub.dist; G.cam.pitchGoal = CAMERA.hub.pitch;
+  if (G.carHint && G.mode === 'hub') { G.carHint.el.style.display = ''; }
+}
+function driveCar(f, r) {
+  const car = G.hubWorld.car, dt = G.dt || 1 / 60;
+  const blockedUI = !$('travel').hidden || poroto.travel || G.dialogOpen;
+  let want = null;
+  if ((f || r) && !blockedUI) {
+    const fx = -Math.cos(G.cam.yaw), fz = Math.sin(G.cam.yaw);
+    want = Math.atan2(-(fz * f + fx * r), fx * f - fz * r);
+  }
+  const vmax = CAR.maxSpeed * (keys.has(' ') ? CAR.turbo : 1);
+  if (want != null) {
+    const d = ((want - car.h + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    const turn = 2.6 * Math.min(1, 0.25 + car.v / 4); // a baja velocidad gira menos (no gira en el lugar)
+    car.h += Math.max(-turn * dt, Math.min(turn * dt, d));
+    const along = Math.cos(d); // si la meta queda atrás, primero frena
+    car.accel = along > 0 ? 1 : -1;
+    car.v = along > 0 ? Math.min(vmax, car.v + CAR.accel * dt * along) : Math.max(0, car.v - CAR.brake * dt);
+  } else {
+    car.accel = 0;
+    car.v = Math.max(0, car.v - (CAR.brake * 0.35) * dt); // suelta el acelerador: rueda y se detiene
+  }
+  poroto.run = false;
+  poroto.speed = car.v;
+  poroto.drive = car.v > 0.05 ? new THREE.Vector2(Math.cos(car.h), -Math.sin(car.h)) : null;
+  engine(Math.min(1, car.v / (CAR.maxSpeed * CAR.turbo)));
+}
+
 // Después de mover: no salirse del camino ni de la escena, y entrar a portales y senderos caminando.
 function afterDrive() {
   if (!poroto.drive) return;
@@ -530,7 +598,9 @@ function afterDrive() {
       const s = pr.userData.portal.stop;
       return Math.hypot(s.x - poroto.pos.x, s.z - poroto.pos.z) < 1.2;
     });
-    if (near && near !== G.nearPortal) {
+    if (near && G.driving && G.hubWorld.car.v > 3) { /* a toda velocidad se pasa de largo */ }
+    else if (near && near !== G.nearPortal) {
+      if (G.driving) G.hubWorld.car.v = 0;
       if (near.userData.portal.active) { keys.clear(); poroto.drive = null; } // se detiene solo en portales activos
       portalClicked(near.userData.portal);
     }
@@ -568,8 +638,18 @@ function steerCamera(dt) {
 }
 window.addEventListener('keydown', e => {
   if (G.mode === 'start' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); start(); return; }
+  if (G.photo) {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) shoot(); return; }
+    if (e.key === 'Escape' || e.key === 'f' || e.key === 'F') { exitPhoto(); return; }
+  } else if ((e.key === 'f' || e.key === 'F') && G.mode === 'scene' && $('travel').hidden) { enterPhoto(); return; }
+  if ((e.key === 'p' || e.key === 'P') && (G.mode === 'scene' || G.mode === 'hub') && !G.photo) { openPassport(); return; }
+  if ((e.key === 'e' || e.key === 'E') && G.mode === 'hub' && !poroto.travel && $('travel').hidden) {
+    if (G.driving) { if (G.hubWorld.car.v < 1.5) leaveCar(); else say('¡Primero frena!', 1.2); } else if (nearCar()) enterCar();
+    return;
+  }
+  if ((e.key === 'h' || e.key === 'H') && G.driving) { horn(); return; }
   if (e.key === 'Escape') { closeDialog(); $('panel').hidden = true; if (!$('travel').hidden) closeTravelMap(); }
-  if ((e.key === 'm' || e.key === 'M') && $('travel').hidden) openTravelMap();
+  if ((e.key === 'm' || e.key === 'M') && $('travel').hidden && !G.photo) openTravelMap();
   if ((e.key === 'n' || e.key === 'N') && G.mode === 'scene') toggleNames();
   if (['q', 'e', 'w', 'a', 's', 'd', ' ', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(e.key.toLowerCase())) {
     if (e.key.startsWith('Arrow') || e.key === ' ') e.preventDefault();
@@ -580,19 +660,113 @@ window.addEventListener('keydown', e => {
 function birdClicked(a) {
   blip(880);
   poroto.look = a.pos.clone(); poroto.binoc = 1;
-  const isNew = !G.book.has(a.sp.id);
   openDialog(birdDialog(G.index, a.sp, G.reg.meta.id, G.year), [
     { label: '♪ Escuchar', keep: true, fn: async () => { const d = await G.director.singNow(a, true); portrait.sing(d || 2); } },
     { label: 'Cerrar' },
   ], { bird: a });
-  if (isNew) {
-    G.book.add(a.sp.id); saveBook();
+  if (noteSighting(a.sp)) {
     poroto.write();
-    const n = featuredList().filter(sci => G.book.has(G.index.bySci.get(sci)?.id)).length;
-    toast(`¡Nueva especie en la libreta! <b>${a.sp.comName}</b> (${n}/${featuredList().length} en ${G.reg.meta.name})`, 3.5);
-    updateHud();
+    const st = regionStatus(G.reg.meta.code);
+    toast(`¡Nueva especie en la libreta! <b>${a.sp.comName}</b> (${st.nSeen}/${st.n} en ${G.reg.meta.name})`, 3.5);
   }
 }
+
+// Anota un ave vista en esta región (libreta y pasaporte). Devuelve true si es nueva aquí.
+function noteSighting(sp) {
+  const code = G.reg.meta.code, before = regionStatus(code)?.tier ?? -1;
+  const isNew = markSeen(code, sp.id);
+  if (!G.book.has(sp.id)) { G.book.add(sp.id); saveBook(); }
+  checkStamp(before);
+  updateHud();
+  return isNew;
+}
+function checkStamp(before) {
+  const st = regionStatus(G.reg.meta.code);
+  if (!st || st.tier <= before) return;
+  const el = $('stamp');
+  el.innerHTML = `<div class="seal" style="--seal:${st.stamp.color}"><small>SELLO DE</small>${st.stamp.label.toUpperCase()}<small>${G.reg.meta.name}</small></div>`;
+  el.hidden = false; el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+  blip(523, 0.1); setTimeout(() => blip(659, 0.1), 120); setTimeout(() => blip(784, 0.18), 240);
+  clearTimeout(checkStamp.h); checkStamp.h = setTimeout(() => { el.hidden = true; }, 3200);
+}
+
+// ------------------------------------------------------------------ modo foto
+// F: Poroto mira por la cámara (primera persona). Flechas o arrastrar: apuntar · rueda: zoom ·
+// clic, espacio o Enter: foto · F o Esc: salir. El puntaje sale de js/photo.js.
+function enterPhoto() {
+  if (G.mode !== 'scene' || G.photo) return;
+  closeDialog(); $('panel').hidden = true; setHover(null);
+  keys.clear(); poroto.drive = null;
+  const P = G.photo = { yaw: G.cam.yaw, pitch: 0.08, fov: 38, drag: null, shot: false, infoT: 0 };
+  poroto.root.visible = false; poroto.shadow.visible = false;
+  $('viewfinder').hidden = false; $('hud').hidden = true; $('minimap').hidden = true;
+  blip(740, 0.05);
+  if (!progress.album || !Object.keys(progress.album).length) toast('Encuadra un ave y dispara con <b>clic</b> o <b>espacio</b>. Más cerca, más centrada, cantando o volando: más estrellas.', 5);
+  return P;
+}
+function exitPhoto() {
+  if (!G.photo) return;
+  G.photo = null;
+  poroto.root.visible = true; poroto.shadow.visible = true;
+  camera.fov = 50; camera.updateProjectionMatrix();
+  $('viewfinder').hidden = true;
+  if (G.mode === 'scene') { $('hud').hidden = false; $('minimap').hidden = false; }
+}
+function shoot() { if (G.photo) G.photo.shot = true; } // se captura en el cuadro, justo después de dibujar
+function aimPhotoCamera(dt) {
+  const P = G.photo;
+  const turn = (keys.has('arrowleft') ? 1 : 0) - (keys.has('arrowright') ? 1 : 0);
+  const tilt = (keys.has('arrowup') ? 1 : 0) - (keys.has('arrowdown') ? 1 : 0);
+  const rate = 1.3 * camera.fov / 50;
+  P.yaw += turn * rate * dt;
+  P.pitch = Math.max(-0.7, Math.min(1.0, P.pitch + tilt * rate * 0.7 * dt));
+  const eye = poroto.root.position.clone(); eye.y += 0.85;
+  camera.position.copy(eye);
+  const cp = Math.cos(P.pitch);
+  camera.lookAt(eye.x - Math.cos(P.yaw) * cp, eye.y + Math.sin(P.pitch), eye.z + Math.sin(P.yaw) * cp);
+  if (Math.abs(camera.fov - P.fov) > 0.05) { camera.fov += (P.fov - camera.fov) * Math.min(1, dt * 10); camera.updateProjectionMatrix(); }
+  if ((P.infoT -= dt) <= 0) { // visor: el ave que saldría mejor en la foto
+    P.infoT = 0.25;
+    camera.updateMatrixWorld();
+    const b = scorePhoto(G.director.agents, camera, G.sc.ground);
+    $('vf-target').innerHTML = b ? `<span style="color:${b.agent.color}">${b.agent.sp.comName}</span> <span class="stars">${starText(b.stars)}</span>${b.tags.length ? ' · ' + b.tags.join(', ') : ''}` : 'Busca un ave en el visor';
+    $('vf-zoom').textContent = `${(50 / camera.fov).toFixed(1)}×`;
+  }
+}
+function takePhoto() {
+  const best = scorePhoto(G.director.agents, camera, G.sc.ground);
+  const fl = $('flash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go');
+  blip(1200, 0.03); setTimeout(() => blip(700, 0.04), 60);
+  if (!best) { toast('No salió ningún ave en la foto.', 2); return; }
+  const a = best.agent, code = G.reg.meta.code;
+  const before = regionStatus(code)?.tier ?? -1;
+  const img = captureThumb(canvas);
+  const res = savePhoto(a.sp.id, { img, score: best.score, stars: best.stars, region: code, month: G.month, year: G.year, tags: best.tags });
+  const isNew = markSeen(code, a.sp.id);
+  if (!G.book.has(a.sp.id)) { G.book.add(a.sp.id); saveBook(); }
+  checkStamp(before);
+  updateHud();
+  const old = res === 'peor' ? progress.album[a.sp.id] : null;
+  const msg = res === 'nueva' ? '¡Primera foto de esta especie!' : res === 'mejor' ? '¡Tu mejor foto de esta especie!' : `Ya tenías una mejor (${starText(old.stars)}).`;
+  toast(`<div class="shot"><img src="${img}" alt=""><div><b>${a.sp.comName}</b> <span class="stars">${starText(best.stars)}</span> ${best.score} pts${best.tags.length ? '<br><span class="dim">' + best.tags.join(', ') + '</span>' : ''}<br>${msg}${isNew ? ' · nueva en la libreta' : ''}</div></div>`, 3.5);
+}
+// arrastrar con el botón izquierdo apunta; un clic sin arrastrar dispara
+canvas.addEventListener('pointerdown', e => {
+  if (!G.photo || e.button !== 0) return;
+  G.photo.drag = { x: e.clientX, y: e.clientY, moved: 0 }; canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e => {
+  const d = G.photo?.drag; if (!d) return;
+  const k = 0.004 * camera.fov / 50;
+  G.photo.yaw -= (e.clientX - d.x) * k;
+  G.photo.pitch = Math.max(-0.7, Math.min(1.0, G.photo.pitch - (e.clientY - d.y) * k));
+  d.moved += Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y); d.x = e.clientX; d.y = e.clientY;
+});
+canvas.addEventListener('pointerup', e => {
+  const d = G.photo?.drag; if (!d || e.button !== 0) return;
+  G.photo.drag = null;
+  if (d.moved < 5) shoot();
+});
 
 // ------------------------------------------------------------------ paneles
 $('b-pause').onclick = () => { G.paused = !G.paused; updateHud(); blip(); };
@@ -603,16 +777,33 @@ $('b-names').onclick = toggleNames;
 $('b-sound').onclick = () => { G.muted = !G.muted; setMuted(G.muted); $('b-sound').classList.toggle('off', G.muted); };
 $('b-map').onclick = () => openTravelMap();
 $('b-book').onclick = () => {
+  const code = G.reg.meta.code, seenHere = new Set(progress.seen[code] || []), st = regionStatus(code);
   const cards = featuredList().map(sci => {
     const sp = G.index.bySci.get(sci);
-    const seen = G.book.has(sp.id);
+    const seen = seenHere.has(sp.id), ph = progress.album[sp.id];
     const pal = sp.palette || {};
     const sw = ['back', 'belly', 'head', 'throat', 'wing', 'accent'].filter(z => pal[z]).map(z => `<i style="background:rgb(${pal[z].join(',')})" title="${z}"></i>`).join('');
     return seen
-      ? `<div class="card"><b>${sp.comName}</b><div class="dim"><i>${sp.sciName}</i></div><div class="dim">${SCENE_LABEL[G.feat[sci]] || ''} · ${Math.round(sp.morphology?.mass || 0)} g</div><div class="sw">${sw}</div></div>`
+      ? `<div class="card">${ph ? `<img class="ph" src="${ph.img}" alt="Foto de ${sp.comName}"><div class="stars">${starText(ph.stars)}</div>` : '<div class="ph none">sin foto</div>'}<b>${sp.comName}</b><div class="dim"><i>${sp.sciName}</i></div><div class="dim">${SCENE_LABEL[G.feat[sci]] || ''} · ${Math.round(sp.morphology?.mass || 0)} g</div><div class="sw">${sw}</div></div>`
       : `<div class="card unk">???<div class="dim">${SCENE_LABEL[G.feat[sci]] || ''}</div></div>`;
   }).join('');
-  openPanel(`<h2>LIBRETA DE CAMPO · ${G.reg.meta.name}</h2><p class="dim">Haz clic en un ave para anotarla. Colores sacados de fotos de referencia.</p><div class="book">${cards}</div>`);
+  const next = TIERS[(st?.tier ?? -1) + 1];
+  openPanel(`<h2>LIBRETA DE CAMPO · ${G.reg.meta.name}</h2><p class="dim">Vistas ${st.nSeen}/${st.n} · fotos ★★ ${st.nPhoto}/${st.n}${st.stamp ? ` · sello de <b style="color:${st.stamp.color}">${st.stamp.label.toLowerCase()}</b>` : ''}${next ? ` · próximo sello (${next.label.toLowerCase()}): ${next.need}` : ''}.<br>Haz clic en un ave para anotarla o fotografíala con <b>F</b>.</p><div class="book">${cards}</div>`);
+};
+$('b-photo').onclick = () => { blip(); G.photo ? exitPhoto() : enterPhoto(); };
+$('b-pass').onclick = () => { blip(); openPassport(); };
+
+// Pasaporte: un sello por región (bronce, plata, oro), de norte a sur.
+function openPassport() {
+  closeDialog();
+  const cards = G.index.regions.map(r => {
+    const st = regionStatus(r.code), open = !!r.terrainFile;
+    const seal = st?.stamp ? `<div class="mini-seal" style="--seal:${st.stamp.color}">${st.stamp.label.toUpperCase()}</div>` : `<div class="mini-seal empty">${open ? (st ? 'SIN SELLO' : 'SIN VISITAR') : 'CERRADA'}</div>`;
+    const info = st ? `vistas ${st.nSeen}/${st.n} · fotos ${st.nPhoto}/${st.n}` : open ? 'entra por su puerta en el pasillo' : 'próximamente';
+    return `<div class="pass ${open ? '' : 'off'}">${seal}<b>${r.name}</b><div class="dim">${info}</div></div>`;
+  }).join('');
+  const nPhotos = Object.keys(progress.album).length;
+  openPanel(`<h2>PASAPORTE</h2><p class="dim">${TIERS.map(t => `<b style="color:${t.color}">${t.label}</b>: ${t.need}`).join(' · ')}.<br>Álbum: ${nPhotos} especie${nPhotos === 1 ? '' : 's'} fotografiada${nPhotos === 1 ? '' : 's'}.</p><div class="passport">${cards}</div>`);
 };
 $('b-credits').onclick = () => {
   const clips = featuredList().map(s => G.index.bySci.get(s)).filter(s => s?.clip)
@@ -673,13 +864,20 @@ function renderTravelMap() {
   const z = $('travel-zones');
   if (here && G.reg) {
     const sc = G.reg.terrain.scenes;
-    z.innerHTML = `<b>${G.reg.meta.name}:</b> ` + sceneOrder().map(k => `<button class="btn" data-k="${k}" ${k === G.sceneKey ? 'disabled' : ''}>${SCENE_LABEL[k]}</button>`).join('');
+    z.innerHTML = `<b>${G.reg.meta.name}:</b> ` + sceneOrder().map(k => `<button class="btn" data-k="${k}" ${k === G.sceneKey ? 'disabled' : ''}>${SCENE_LABEL[k]}</button>`).join('')
+      + ` <button class="btn" id="to-hub" title="Volver al pasillo de Chile">↩ Pasillo</button>`;
     z.querySelectorAll('[data-k]').forEach(b => { b.onclick = () => { closeTravelMap(); travel(b.dataset.k); }; });
+    $('to-hub').onclick = () => {
+      const from = G.reg.meta.code;
+      $('travel').hidden = true; poroto.holdMap(false); blip(660, 0.08);
+      poroto.startTravel(G.sc.heightAt, async () => { await fade(true, 'Volviendo al pasillo…'); await enterHub(from); });
+    };
   } else z.innerHTML = '';
 }
 
 function openTravelMap() {
   if ((G.mode !== 'scene' && G.mode !== 'hub') || poroto.travel || !$('travel').hidden) return;
+  if (G.driving) leaveCar();
   closeDialog(); $('panel').hidden = true;
   poroto.holdMap(true);
   say('¿A dónde vamos?', 1.5);
@@ -718,7 +916,7 @@ $('start').addEventListener('click', start);
 let last = performance.now();
 const fwd = new THREE.Vector3();
 function frame(now) {
-  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  const dt = Math.min(0.1, (now - last) / 1000); last = now; G.dt = dt;
   if (G.mode === 'hub' || G.mode === 'scene') {
     const heightAt = G.mode === 'scene' ? G.sc.heightAt : G.hubWorld.heightAt;
     // caída desde el vacío al entrar al menú
@@ -728,19 +926,30 @@ function frame(now) {
     driveFromKeys();
     const st = poroto.update(dt, heightAt, blocked);
     afterDrive();
+    if (G.mode === 'hub') {
+      const car = G.hubWorld.car;
+      if (G.driving) {
+        poroto.heading = car.h;
+        car.group.position.set(poroto.pos.x, G.hubWorld.heightAt(poroto.pos.x, poroto.pos.z) - 0.05, poroto.pos.z);
+        car.group.rotation.y = car.h;
+        poroto.root.position.y += CAR.seatY; poroto.root.rotation.y = car.h; poroto.shadow.visible = false;
+      }
+      car.animate(dt, G.driving ? car.v : 0);
+      if (G.carHint) { G.carHint.pos.copy(car.group.position).y += 1.8; G.carHint.el.style.opacity = !G.driving && nearCar() ? '1' : '0'; }
+    }
     if (G.mode === 'scene') minimap.update(dt, poroto, G.director.agents);
     else if ((G.hubRegionT = (G.hubRegionT ?? 0) - dt) <= 0) {
       G.hubRegionT = 0.4;
       const r = G.hubWorld.regionAt(poroto.pos.x, poroto.pos.z);
       if (r && r.code !== G.hubRegion) { G.hubRegion = r.code; minimap.setHub({ chileMap: G.chileMap, regionCode: r.code, regionName: r.name }); }
     }
-    if (poroto.drop > 0) {
+    if (poroto.drop > 0 && !G.driving) {
       poroto.drop = Math.max(0, poroto.drop - dt * 18);
       poroto.root.position.y += poroto.drop;
       if (poroto.drop === 0) { blip(160, 0.12); say(poroto.dropMsg || '¡Hola! Soy Poroto.'); poroto.dropMsg = null; }
     }
-    if (st.sleep && bubble.hidden) say('Zzz…', 2);
-    if (G.mode === 'hub') G.hubWorld.update(now / 1000);
+    if (st.sleep && bubble.hidden && !G.driving) say('Zzz…', 2);
+    if (G.mode === 'hub') G.hubWorld.update(now / 1000, dt);
     if (G.mode === 'scene') {
       G.director.update(dt, G.paused);
       G.sc.animate?.(now / 1000);
@@ -763,9 +972,10 @@ function frame(now) {
     if (G.mode === 'scene') camera.position.y = Math.max(camera.position.y, G.sc.heightAt(camera.position.x, camera.position.z) + 1.5);
     else camera.position.y = Math.max(camera.position.y, G.hubWorld.groundAt(camera.position.x, camera.position.z) + 0.8);
     camera.lookAt(c.target);
+    if (G.photo) aimPhotoCamera(dt);
     camera.updateMatrixWorld();
     shared.uLightDir.value.set(0.45, 1, 0.35).normalize().transformDirection(camera.matrixWorldInverse);
-    shared.uCutNear.value = G.mode === 'scene' ? c.dist * 0.85 : 0;
+    shared.uCutNear.value = G.photo ? 0.8 : G.mode === 'scene' ? c.dist * 0.85 : 0;
     camera.getWorldDirection(fwd);
     setListener(poroto.root.position, fwd);
     // globito de Poroto
@@ -777,6 +987,7 @@ function frame(now) {
       if (bubbleT <= 0) bubble.hidden = true;
     }
     if (G.world) renderer.render(G.world, camera);
+    if (G.photo?.shot) { G.photo.shot = false; takePhoto(); }
     updateLabels();
     updateBirdLabels();
   }
@@ -796,4 +1007,4 @@ loadWorld().then(async idx => {
 requestAnimationFrame(frame);
 
 // para depurar desde la consola
-window.G = G; window.camera = camera; window.poroto = poroto; window.dbg = { enterRegion, travel, setMonth, setYear };
+window.G = G; window.camera = camera; window.poroto = poroto; window.dbg = { enterRegion, enterHub, travel, setMonth, setYear, enterPhoto, exitPhoto, shoot, noteSighting };
