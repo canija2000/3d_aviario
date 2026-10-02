@@ -57,6 +57,13 @@ genera el repo principal.
 9. **Point & click:** el avatar camina al punto clicado. Se recomienda una
    cámara fija o semifija sobre el diorama, no libre.
 
+### Regiones jugables
+
+Metropolitana, Valparaíso, Magallanes y Arica y Parinacota (humedal del Lluta, valle de Azapa, bofedal de
+Parinacota y lago Chungará). Cada región tiene las escenas que su contexto pida, no siempre 4: se definen
+en `REGION_SCENES` de `python_scripts/enrich/bake_terrain.py` (repo principal) junto con
+`enrich/featured.json` y `enrich/props_<rr>.json`, y se traen con `scripts/sync_data.py --regions ...`.
+
 ### Juego (implementado, js/photo.js)
 
 - **Modo foto (F):** Poroto mira por la cámara en primera persona. Puntaje 0–100 y 1 a 3 estrellas

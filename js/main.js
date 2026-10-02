@@ -31,7 +31,7 @@ const LIGHT = {
 // Etiquetas de los biomas (las escenas de cada región salen de terrain-<CODE>.json).
 const SCENE_LABEL = { ciudad: 'Ciudad', matorral: 'Matorral', rio: 'Río', cordillera: 'Cordillera', costa: 'Costa',
   humedal: 'Humedal', desierto: 'Desierto', valle: 'Valle', altiplano: 'Altiplano', bosque: 'Bosque', lago: 'Lago',
-  pradera: 'Pradera', fiordo: 'Fiordo', estepa: 'Estepa' };
+  pradera: 'Pradera', fiordo: 'Fiordo', estepa: 'Estepa', bofedal: 'Bofedal' };
 const sceneOrder = () => Object.keys(G.reg.terrain.scenes);
 const featuredList = () => Object.keys(G.feat || {});
 
@@ -304,7 +304,8 @@ function applyLight(season, fogColor, near, far) {
   const L = LIGHT[season];
   shared.uLightCol.value.set(L.sun);
   shared.uAmb.value.set(L.amb);
-  const fc = fogColor ?? (G.sceneKey === 'cordillera' ? 0x9cb4d8 : G.sc?.seaY != null ? 0xa4b8c8 : L.fog);
+  const high = G.sceneKey === 'cordillera' || (G.sc?.hMin ?? 0) > 3000; // aire limpio de altura
+  const fc = fogColor ?? (high ? 0x9cb4d8 : G.sc?.seaY != null ? 0xa4b8c8 : L.fog);
   shared.uFogColor.value.set(fc);
   renderer.setClearColor(fc);
   shared.uFogNear.value = near ?? 18; shared.uFogFar.value = far ?? 62;

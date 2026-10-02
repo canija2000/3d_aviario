@@ -122,8 +122,8 @@ export function setAmbience(kind) {
   const out = ac.createGain(); out.gain.value = 0; out.connect(master);
   const bed = ac.createGain(); bed.connect(out); // lecho (se atenúa con ducking)
   const nodes = [], timers = [];
-  const level = { cordillera: 0.11, rio: 0.12, ciudad: 0.07, matorral: 0.05 }[kind] ?? 0.04;
-  if (kind === 'cordillera') {
+  const level = { cordillera: 0.11, bofedal: 0.1, lago: 0.1, rio: 0.12, ciudad: 0.07, matorral: 0.05 }[kind] ?? 0.04;
+  if (kind === 'cordillera' || kind === 'bofedal' || kind === 'lago') { // viento de altura
     const s = noiseSrc(); const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 500; bp.Q.value = 0.7;
     const g = ac.createGain(); g.gain.value = 0.6;
     s.connect(bp); bp.connect(g); g.connect(bed);
