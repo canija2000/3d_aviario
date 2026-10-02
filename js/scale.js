@@ -33,6 +33,7 @@ export const PROP_SIZE = {
   doca: { natural: 0.2, h: 0.25 }, madriguera: { natural: 0.25, h: 0.4 }, tronco_caido: 0.8,
   banca_farol: 3.2, muelle: 1.6,
   olivo: 4.5, algarrobo: 6, brea: 1.4, tola: 0.6, quenoa: 3, paja_brava: { natural: 0.8, h: 0.7 },
+  coigue: 14, ulmo: 11, arrayan: 6, canelo: 8, nalca: 1.6, quila: { natural: 1.6, h: 2.2 }, helecho: { natural: 0.7, h: 0.8 },
   edificio: { width: 9 }, casa_color: { width: 6 },
 };
 

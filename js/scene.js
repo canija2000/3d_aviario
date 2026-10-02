@@ -123,6 +123,16 @@ function propKinds(R) {
     tola: { parts: [blob(0.45, 0.32, 0.75, [100, 104, 64])], perch: 0.6 },
     quenoa: { parts: [[new THREE.CylinderGeometry(0.1, 0.2, 1.6, 5).rotateZ(0.3).translate(0.2, 0.8, 0), m(makeTex(8, 16, () => vary([150, 80, 52], 14)))],
       blob(0.7, 1.7, 0.6, [56, 84, 52]), blob(0.5, 1.4, 0.6, [64, 92, 56])], perch: 2.0 },
+    // Los Ríos: bosque valdiviano
+    coigue: { parts: [trunk(5, 0.32), blob(1.6, 4.6, 0.45, [40, 72, 40]), blob(1.4, 5.6, 0.45, [48, 80, 44]), blob(1.1, 6.5, 0.5, [44, 76, 42])], perch: 6.8 },
+    ulmo: { parts: [trunk(3.4, 0.26), blob(1.7, 4.2, 0.9, [52, 96, 48]), [new THREE.IcosahedronGeometry(1.75, 0).scale(1, 0.92, 1).translate(0, 4.25, 0), m(makeTex(16, 16, () => R() < 0.1 ? [236, 236, 228] : [0, 0, 0, 0]), { alpha: 1 }), 'crown']], perch: 5.4 },
+    arrayan: { parts: [[new THREE.CylinderGeometry(0.12, 0.18, 2.4, 5).rotateZ(0.15).translate(0, 1.2, 0), m(makeTex(8, 16, () => vary(R() < 0.3 ? [232, 236, 228] : [196, 112, 52], 10)))],
+      blob(1.1, 2.7, 0.7, [56, 92, 44])], perch: 3.2 },
+    canelo: { parts: [trunk(2.6, 0.18), [new THREE.ConeGeometry(1.0, 3.4, 6).translate(0, 3.6, 0), crown([84, 120, 72]), 'crown']], perch: 4.4 },
+    quila: { parts: cross(1.4, 1.6, makeTex(16, 32, (x, y) => (x % 3 === 1 && y > 1) || (y % 6 === 0 && x % 3 === 2) ? vary([120, 140, 64], 14) : [0, 0, 0, 0])) },
+    nalca: { parts: [...[0, 2.1, 4.2].map(a => [new THREE.CircleGeometry(0.55, 6).rotateX(-Math.PI / 2 + 0.5).translate(0, 0.9, 0.35).rotateY(a), m(leaf([64, 112, 48]), { twoSided: true })]),
+      [new THREE.CylinderGeometry(0.04, 0.06, 0.9, 4).translate(0, 0.45, 0), m(makeTex(4, 4, () => vary([150, 64, 52], 8)))]], perch: 1.0 },
+    helecho: { parts: cross(0.9, 0.7, makeTex(16, 16, (x, y) => (Math.abs(x - 7.5) < (16 - y) * 0.45 && (x + y) % 2 === 0) ? vary([60, 108, 52], 12) : [0, 0, 0, 0])) },
     cojin_bofedal: { parts: [[new THREE.SphereGeometry(0.9, 6, 3, 0, Math.PI * 2, 0, Math.PI / 2).scale(1.2, 0.22, 1), m(makeTex(16, 16, () => vary(R() < 0.15 ? [56, 100, 44] : [84, 140, 60], 10)), { snowable: true })]] },
   };
   useKit(kinds, m);
@@ -197,7 +207,7 @@ const DENSITY = { arbol: 0.05, arbusto: 0.14, cactus: 0.05, roca: 0.05, junco: 0
 // - Senderos: franja de PATH_W unidades sin props desde el centro a cada salida.
 // - MAX_PER_KIND: tope de instancias por tipo de prop.
 export const SCENE_DENSITY = { ciudad: 0.55, matorral: 0.45, rio: 0.5, cordillera: 1, costa: 0.7, humedal: 0.6, estepa: 1, bosque: 0.4, fiordo: 0.8,
-  valle: 0.5, bofedal: 0.9, lago: 0.8 };
+  valle: 0.5, bofedal: 0.9, lago: 0.8 }; // bosque (0.4) vale también para el valdiviano
 const CLEAR_R = 7, CLEAR_R2 = 18, CLEAR_MIN = 0.1, PATH_W = 2.2, MAX_PER_KIND = 70, BUILDING_CLEAR = 15;
 
 const segDist = (px, pz, ax, az, bx, bz) => {

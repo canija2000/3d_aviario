@@ -90,6 +90,23 @@ export const VOICE = {
   'Phoenicoparrus jamesi': { art: 'la', hi: '¡Ank-ank!' },
   'Spatula puna': { art: 'el', hi: '¡Cuaac!' },
   'Anas flavirostris': { art: 'el', hi: '¡Prrrit-prrrit!' },
+  // Los Ríos
+  'Scelorchilus rubecula': { art: 'el', hi: '¡Chucaaao! (si canto a tu derecha, es buen augurio)' },
+  'Pteroptochos tarnii': { art: 'el', hi: '¡Hued-hued-hued!' },
+  'Scytalopus magellanicus': { art: 'el', hi: '¡Pit-pit-pit-pit!' },
+  'Sylviorthorhynchus desmursii': { art: 'la', hi: '¡Tsi-tsi-trrrrr!' },
+  'Elaenia albiceps': { art: 'el', hi: '¡Fío-fío!' },
+  'Patagioenas araucana': { art: 'la', hi: '¡Cuuu-cuu-cuu!' },
+  'Podiceps major': { art: 'la', hi: '¡Ua-uaaa! (un lamento largo)' },
+  'Agelasticus thilius': { art: 'el', hi: '¡Trile-trile!' },
+  'Hymenops perspicillatus': { art: 'el', hi: '¡Tic! (y un saltito al aire)' },
+  'Tachuris rubrigastra': { art: 'el', hi: '¡Tic-tic-tirrí!' },
+  'Megaceryle torquata': { art: 'el', hi: '¡Kek-kek-kek-kek!' },
+  'Chroicocephalus maculipennis': { art: 'la', hi: '¡Kirr-kirr!' },
+  'Theristicus melanopis': { art: 'la', hi: '¡Cuá-cuá-cuá! (y despierto a todo el barrio)' },
+  'Coragyps atratus': { art: 'el', hi: '(los jotes no cantan: solo sisean) ¡Shhh!' },
+  'Caracara plancus': { art: 'el', hi: '¡Traaa-rooo!' },
+  'Curaeus curaeus': { art: 'el', hi: '¡Tuit-tuit-tordo!' },
 };
 export const MVP = VOICE; // compatibilidad
 
