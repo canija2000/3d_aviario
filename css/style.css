@@ -156,3 +156,39 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ground
 #mm-chile path.here { fill: var(--yes); }
 #mm-chile circle { fill: #ff6a3a; stroke: #10131c; stroke-width: 1.5; }
 @media (max-width: 640px) { .minimap { width: 120px; } #mm-local { width: 104px; height: 104px; } }
+
+/* modo foto: visor 4:3 centrado (lo que queda dentro es la foto) */
+.viewfinder { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+.viewfinder .c { position: absolute; width: 34px; height: 34px; border: 3px solid var(--yes); }
+.viewfinder .tl, .viewfinder .bl { left: calc(50% - min(48vw, 66.7vh)); }
+.viewfinder .tr, .viewfinder .br { right: calc(50% - min(48vw, 66.7vh)); }
+.viewfinder .tl, .viewfinder .tr { top: max(12px, calc(50% - 37.5vw)); }
+.viewfinder .bl, .viewfinder .br { bottom: max(12px, calc(50% - 37.5vw)); }
+.viewfinder .tl { border-right: 0; border-bottom: 0; } .viewfinder .tr { border-left: 0; border-bottom: 0; }
+.viewfinder .bl { border-right: 0; border-top: 0; } .viewfinder .br { border-left: 0; border-top: 0; }
+.viewfinder .cross { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; transform: translate(-50%, -50%);
+  background: linear-gradient(var(--yes), var(--yes)) center / 2px 100% no-repeat, linear-gradient(var(--yes), var(--yes)) center / 100% 2px no-repeat; opacity: 0.8; }
+.vf-info { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); font-family: var(--read); font-size: 16px; padding: 6px 12px; white-space: nowrap; }
+.vf-hint { position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%); margin: 0; font-family: var(--read); font-size: 13px; color: var(--ink); text-shadow: 0 0 3px #000, 1px 1px 0 #000; white-space: nowrap; }
+.stars { color: var(--yes); letter-spacing: 0.05em; }
+.flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 14; }
+.flash.go { animation: flash 0.35s ease-out; }
+@keyframes flash { from { opacity: 0.85; } to { opacity: 0; } }
+.toast .shot { display: flex; gap: 10px; align-items: center; text-align: left; }
+.toast .shot img { width: 120px; height: 90px; image-rendering: pixelated; border: 2px solid var(--yes); }
+/* libreta con fotos */
+.book .ph { display: block; width: 100%; aspect-ratio: 4 / 3; image-rendering: pixelated; border-radius: 2px; margin-bottom: 4px; }
+.book .ph.none { display: grid; place-content: center; background: #10131c; color: var(--no); font-size: 12px; }
+/* sellos */
+.stamp { position: fixed; inset: 0; display: grid; place-content: center; pointer-events: none; z-index: 13; }
+.stamp.go .seal { animation: seal 0.5s cubic-bezier(.2, 1.6, .4, 1) both; }
+.seal { width: 200px; height: 200px; border-radius: 50%; border: 8px double var(--seal); color: var(--seal); background: rgba(8, 10, 16, 0.86);
+  display: grid; place-content: center; text-align: center; font-family: var(--pix); font-size: 34px; transform: rotate(-12deg); text-shadow: 0 2px 0 #000; }
+.seal small { display: block; font-size: 13px; letter-spacing: 0.15em; }
+@keyframes seal { from { transform: scale(2.6) rotate(-30deg); opacity: 0; } to { transform: scale(1) rotate(-12deg); opacity: 1; } }
+.passport { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.passport .pass { border: 2px solid var(--win-inner); border-radius: 4px; padding: 8px; text-align: center; font-size: 14px; }
+.passport .pass.off { opacity: 0.5; }
+.mini-seal { width: 64px; height: 64px; margin: 0 auto 6px; border-radius: 50%; border: 4px double var(--seal); color: var(--seal);
+  display: grid; place-content: center; font-family: var(--pix); font-size: 12px; transform: rotate(-12deg); }
+.mini-seal.empty { --seal: var(--no); border-style: dashed; font-size: 10px; }

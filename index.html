@@ -19,6 +19,7 @@
   <p class="blink">PRESS START</p>
   <p class="hint">clic o Enter · activa el sonido</p>
   <p class="hint">Flechas: caminar · Espacio: correr · WASD: cámara · clic: mirar aves · M: mapa</p>
+  <p class="hint">F: cámara de fotos · P: pasaporte de sellos</p>
 </div>
 
 <!-- HUD -->
@@ -43,7 +44,9 @@
     <button class="btn" id="b-next" title="Mes siguiente">⏭</button>
     <button class="btn" id="b-year" title="Elegir el año: año típico o 2017–2024">AÑO TÍPICO</button>
     <button class="btn" id="b-map" title="Mapa de Chile (M)">MAPA</button>
+    <button class="btn" id="b-photo" title="Cámara de fotos (F)">FOTO</button>
     <button class="btn" id="b-book" title="Libreta de campo">LIBRETA <span id="book-n">0</span></button>
+    <button class="btn" id="b-pass" title="Pasaporte de sellos (P)">PASAPORTE</button>
     <button class="btn" id="b-names" title="Mostrar u ocultar los nombres de las aves (N)">NOMBRES</button>
     <button class="btn" id="b-sound" title="Silenciar">♪</button>
     <button class="btn" id="b-credits" title="Créditos">i</button>
@@ -62,6 +65,13 @@
     <p class="map-hint">Elige una región: Poroto dejará el mapa en el suelo y saltará dentro. · M abre el mapa</p>
   </div>
 </div>
+<div id="viewfinder" class="viewfinder" hidden>
+  <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i><i class="cross"></i>
+  <div class="win vf-info"><span id="vf-target"></span> <span id="vf-zoom" class="dim"></span></div>
+  <p class="vf-hint">clic, espacio: foto · arrastrar, flechas: apuntar · rueda: zoom · F, Esc: salir</p>
+</div>
+<div id="flash" class="flash"></div>
+<div id="stamp" class="stamp" hidden></div>
 <div id="fade" class="fade"><div id="fade-text"></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

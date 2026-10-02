@@ -91,7 +91,7 @@ const lin = c => c.map(v => Math.pow(Math.max(0, Math.min(255, v)) / 255, 2.2));
 const DOOR_SCALE = 0.6;
 const DOOR_STYLE = lat => lat > -26.5 ? 'adobe' : lat > -36.5 ? 'colonial' : lat > -44 ? 'tejuela' : 'chapa';
 
-export function buildHub({ index, relief, label, poroto }) {
+export function buildHub({ index, relief, label, poroto, stampOf = () => '' }) {
   const R = mulberry32(7), vary = makeVary(R);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x05060b);
@@ -263,7 +263,7 @@ export function buildHub({ index, relief, label, poroto }) {
     scene.add(door);
     if (door.userData.swirl) swirls.push(door.userData.swirl);
     const anchor = door.position.clone().add(new THREE.Vector3(0, 1.3 * DOOR_SCALE, 0));
-    label(r.name, door.position.clone().add(new THREE.Vector3(0, 3.9 * DOOR_SCALE, 0)), active ? '#f4d35e' : '#aab0c8', active ? 'big' : '', 32);
+    label(r.name + stampOf(r.code), door.position.clone().add(new THREE.Vector3(0, 3.9 * DOOR_SCALE, 0)), active ? '#f4d35e' : '#aab0c8', active ? 'big' : '', 32);
     const proxy = new THREE.Mesh(new THREE.SphereGeometry(1.0, 6, 4), new THREE.MeshBasicMaterial({ visible: false }));
     proxy.position.copy(anchor);
     proxy.userData.portal = { region: r, active, anchor, stop: new THREE.Vector3(p.x, p.y, p.z), pathIndex: i };
