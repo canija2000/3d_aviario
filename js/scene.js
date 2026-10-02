@@ -114,6 +114,16 @@ function propKinds(R) {
     madriguera: { parts: [[new THREE.SphereGeometry(0.55, 6, 3, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.45, 1), m(makeTex(8, 8, (x, y) => (x > 2 && x < 6 && y > 3) ? [20, 16, 14] : vary([110, 96, 70], 10)))]], perch: 0.3 },
     muelle: { parts: [[new THREE.BoxGeometry(1.2, 0.12, 4).translate(0, 0.9, 0), m(signTex)],
       ...[-1.6, 0, 1.6].flatMap(z => [-0.5, 0.5].map(x => [new THREE.CylinderGeometry(0.08, 0.08, 1.8, 4).translate(x, 0, z), m(bark)]))], perch: 1.0 },
+    // Arica y Parinacota: valle de Azapa, humedal del Lluta y altiplano
+    olivo: { parts: [[new THREE.CylinderGeometry(0.16, 0.3, 1.4, 5).rotateZ(0.12).translate(0, 0.7, 0), m(bark)],
+      blob(1.3, 2.0, 0.7, [120, 136, 104]), blob(0.8, 2.5, 0.6, [136, 148, 116])], perch: 2.6 },
+    algarrobo: { parts: [trunk(1.8, 0.2), blob(1.8, 2.4, 0.4, [128, 148, 72])], perch: 2.8 },
+    brea: { parts: [blob(0.7, 0.55, 0.8, [124, 136, 100])], perch: 1.1 },
+    paja_brava: { parts: cross(0.8, 0.8, makeTex(16, 32, (x, y) => (x % 2 === 0 && y > (x * 5) % 9) ? vary([208, 180, 100], 18) : [0, 0, 0, 0])) },
+    tola: { parts: [blob(0.45, 0.32, 0.75, [100, 104, 64])], perch: 0.6 },
+    quenoa: { parts: [[new THREE.CylinderGeometry(0.1, 0.2, 1.6, 5).rotateZ(0.3).translate(0.2, 0.8, 0), m(makeTex(8, 16, () => vary([150, 80, 52], 14)))],
+      blob(0.7, 1.7, 0.6, [56, 84, 52]), blob(0.5, 1.4, 0.6, [64, 92, 56])], perch: 2.0 },
+    cojin_bofedal: { parts: [[new THREE.SphereGeometry(0.9, 6, 3, 0, Math.PI * 2, 0, Math.PI / 2).scale(1.2, 0.22, 1), m(makeTex(16, 16, () => vary(R() < 0.15 ? [56, 100, 44] : [84, 140, 60], 10)), { snowable: true })]] },
   };
   useKit(kinds, m);
   return kinds;
@@ -186,7 +196,8 @@ const DENSITY = { arbol: 0.05, arbusto: 0.14, cactus: 0.05, roca: 0.05, junco: 0
 // - Claro central: dentro de CLEAR_R la densidad cae a CLEAR_MIN y sube suave hasta CLEAR_R2.
 // - Senderos: franja de PATH_W unidades sin props desde el centro a cada salida.
 // - MAX_PER_KIND: tope de instancias por tipo de prop.
-export const SCENE_DENSITY = { ciudad: 0.55, matorral: 0.45, rio: 0.5, cordillera: 1, costa: 0.7, humedal: 0.6, estepa: 1, bosque: 0.4, fiordo: 0.8 };
+export const SCENE_DENSITY = { ciudad: 0.55, matorral: 0.45, rio: 0.5, cordillera: 1, costa: 0.7, humedal: 0.6, estepa: 1, bosque: 0.4, fiordo: 0.8,
+  valle: 0.5, bofedal: 0.9, lago: 0.8 };
 const CLEAR_R = 7, CLEAR_R2 = 18, CLEAR_MIN = 0.1, PATH_W = 2.2, MAX_PER_KIND = 70, BUILDING_CLEAR = 15;
 
 const segDist = (px, pz, ax, az, bx, bz) => {
@@ -341,6 +352,9 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20, austra
     }
     const snowBy = { cordillera: { invierno: 0.85, 'otoño': 0.25, primavera: 0.5, verano: 0.05 },
       matorral: { invierno: month === 6 ? 0.15 : 0 } };
+    // altiplano (sobre 3.000 m, menos la cordillera central): nevazones del "invierno altiplánico" en
+    // verano y heladas secas en invierno
+    if (data.hMin > 3000 && key !== 'cordillera') return { verano: month === 1 ? 0.35 : 0.1, invierno: 0.2 }[season] ?? 0;
     // regiones australes: nieve en invierno en todas las escenas (menos en la costa, que es más templada)
     if (austral) return { invierno: key === 'costa' || key === 'fiordo' ? 0.45 : 0.8, 'otoño': 0.15, primavera: 0.2, verano: 0 }[season];
     return snowBy[key]?.[season] ?? 0;
@@ -405,7 +419,7 @@ export function buildScene(key, data, props, exitAngles = [], exitR = 20, austra
     wpos.needsUpdate = true;
   }
 
-  return { root, heightAt, coverAt, perches, flowers, obstacles, trunks, exits, exitPts, setSeason, half, cell, n, groundMat, ground, waterSpots, seaY, animate };
+  return { root, heightAt, coverAt, perches, flowers, obstacles, trunks, exits, exitPts, setSeason, half, cell, n, groundMat, ground, waterSpots, seaY, animate, hMin: data.hMin };
 }
 
 // Letrero de sendero con texto pixelado.

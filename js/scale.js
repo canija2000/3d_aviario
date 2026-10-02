@@ -28,6 +28,7 @@ export const PROP_SIZE = {
   coiron: { natural: 0.8, h: 0.7 }, totora: 2.0, flores_altura: 0.35,
   doca: { natural: 0.2, h: 0.25 }, madriguera: { natural: 0.25, h: 0.4 }, tronco_caido: 0.8,
   banca_farol: 3.2, muelle: 1.6,
+  olivo: 4.5, algarrobo: 6, brea: 1.4, tola: 0.6, quenoa: 3, paja_brava: { natural: 0.8, h: 0.7 },
   edificio: { width: 9 }, casa_color: { width: 6 },
 };
 
