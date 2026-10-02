@@ -170,3 +170,31 @@ export function duckAmbience(secs) {
   g.setTargetAtTime(0.45, t, 0.15);
   g.setTargetAtTime(1, t + secs, 0.6);
 }
+
+// Motor de la Citroneta: dos osciladores graves por un filtro; level null = apagado, 0..1 = régimen.
+let eng = null;
+export function engine(level) {
+  if (!audioReady()) return;
+  const t = ac.currentTime;
+  if (level == null) {
+    if (eng) { const e = eng; eng = null; e.g.gain.setTargetAtTime(0, t, 0.08); setTimeout(() => { e.o.stop(); e.o2.stop(); }, 600); }
+    return;
+  }
+  if (!eng) {
+    const o = ac.createOscillator(), o2 = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain();
+    o.type = 'sawtooth'; o2.type = 'square'; f.type = 'lowpass'; f.frequency.value = 420; g.gain.value = 0;
+    o.connect(f); o2.connect(f); f.connect(g); g.connect(master); o.start(); o2.start();
+    eng = { o, o2, g };
+  }
+  eng.o.frequency.setTargetAtTime(34 + level * 62, t, 0.1);
+  eng.o2.frequency.setTargetAtTime(17 + level * 31, t, 0.1);
+  eng.g.gain.setTargetAtTime(0.035 + level * 0.03, t, 0.1);
+}
+// Bocina de 2CV: un "meep" nasal de dos tonos.
+export function horn() {
+  if (!audioReady()) return;
+  for (const f of [392, 466]) {
+    const o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.value = f; g.gain.value = 0.04;
+    o.connect(g); g.connect(master); o.start(); o.stop(ac.currentTime + 0.32);
+  }
+}

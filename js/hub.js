@@ -4,6 +4,11 @@
 // puerta construida con un material de su zona.
 /* global THREE */
 import { mat, makeTex, makeVary, mulberry32 } from './ps1.js';
+import { buildDoor } from './doors.js';
+import { HUB_BIRDS } from './hub_birds.js';
+import { buildBird, planFor } from './bird.js';
+import { birdScale } from './scale.js';
+import { buildCar } from './car.js';
 
 // Escala del diorama: S unidades por grado de latitud (1 unidad ≈ 18,5 km) y V unidades por metro de
 // altura (1 unidad = 1 km: el relieve va exagerado ~18 veces para que los Andes se lean como muralla).
@@ -87,9 +92,9 @@ function seaColor(depth) {
 }
 const lin = c => c.map(v => Math.pow(Math.max(0, Math.min(255, v)) / 255, 2.2)); // el shader aplica gamma a vCol
 
-// Puertas: el material depende de la zona.
+// Puertas (js/doors.js): una distinta por región, a esta escala junto al camino.
 const DOOR_SCALE = 0.6;
-const DOOR_STYLE = lat => lat > -26.5 ? 'adobe' : lat > -36.5 ? 'colonial' : lat > -44 ? 'tejuela' : 'chapa';
+const HUB_BIRD_SIZE = 1.8; // las aves chicas junto a las puertas, más grandes para que se lean desde la cámara del pasillo
 
 export function buildHub({ index, relief, label, poroto, stampOf = () => '' }) {
   const R = mulberry32(7), vary = makeVary(R);
@@ -244,7 +249,7 @@ export function buildHub({ index, relief, label, poroto, stampOf = () => '' }) {
   scene.add(new THREE.Mesh(rGeo, mat(cobble, { vcol: 1, twoSided: true })));
 
   // ---- puertas: una por región, al lado cordillerano del camino, en la mitad de su tramo
-  const portals = [], swirls = [];
+  const portals = [], swirls = [], doors = [];
   for (const r of regs) {
     const inReg = path.map((p, i) => (p.rid === r.id ? i : -1)).filter(i => i >= 0);
     let i = inReg.length ? inReg[Math.floor(inReg.length / 2)] : 0;
@@ -256,14 +261,15 @@ export function buildHub({ index, relief, label, poroto, stampOf = () => '' }) {
     const east = p.nx > 0 ? 1 : -1; // normal hacia el este (los Andes)
     const ox = p.nx * east, oz = p.nz * east;
     const active = !!r.terrainFile;
-    const door = buildDoor(DOOR_STYLE(p.lat), active, R, vary);
+    const door = buildDoor(r.code, active);
     door.scale.setScalar(DOOR_SCALE);
     door.position.set(p.x + ox * (HALF + 0.7), p.y, p.z + oz * (HALF + 0.7));
     door.rotation.y = Math.atan2(-ox, -oz); // el frente mira al camino
     scene.add(door);
     if (door.userData.swirl) swirls.push(door.userData.swirl);
     const anchor = door.position.clone().add(new THREE.Vector3(0, 1.3 * DOOR_SCALE, 0));
-    label(r.name + stampOf(r.code), door.position.clone().add(new THREE.Vector3(0, 3.9 * DOOR_SCALE, 0)), active ? '#f4d35e' : '#aab0c8', active ? 'big' : '', 32);
+    label(r.name + stampOf(r.code), door.position.clone().add(new THREE.Vector3(0, (door.userData.top + 0.3) * DOOR_SCALE, 0)), active ? '#f4d35e' : '#aab0c8', active ? 'big' : '', 32);
+    doors.push({ door, r });
     const proxy = new THREE.Mesh(new THREE.SphereGeometry(1.0, 6, 4), new THREE.MeshBasicMaterial({ visible: false }));
     proxy.position.copy(anchor);
     proxy.userData.portal = { region: r, active, anchor, stop: new THREE.Vector3(p.x, p.y, p.z), pathIndex: i };
@@ -320,8 +326,54 @@ export function buildHub({ index, relief, label, poroto, stampOf = () => '' }) {
     const p = path[Math.max(0, pr.userData.portal.pathIndex - 6)];
     return new THREE.Vector3(p.x, p.y, p.z);
   };
-  const update = t => { for (const m of swirls) m.uniforms.uOffset.value.set(Math.sin(t * 0.7) * 0.1, -t * 0.35); };
-  return { scene, portals, snap, heightAt, groundAt, regionAt, spawn, update };
+  // ---- aves de cada zona, a los lados de su puerta
+  const birds = [];
+  for (const { door, r } of doors) {
+    door.updateMatrixWorld(true);
+    (HUB_BIRDS[r.code] || []).forEach((hb, k) => {
+      const base = index.bySci.get(hb.sci);
+      if (!base) return;
+      const sp = { ...base, id: base.id + 100000, palette: base.palette || hb.palette }; // copia: no toca la caché de texturas de las escenas
+      const plan = planFor(base);
+      const m = buildBird(sp, plan);
+      const big = base.morphology?.scale ?? 1;
+      const s = birdScale(base) * (big > 4 ? 0.7 : big > 2 ? 1 : HUB_BIRD_SIZE); // las chicas se agrandan para leerse; las muy grandes se achican
+      m.group.scale.setScalar(s);
+      const side = k ? 1 : -1;
+      const pos = door.localToWorld(new THREE.Vector3(side * (2.6 + R() * 0.6), 0, 1.3 + R() * 0.8));
+      pos.y = groundAt(pos.x, pos.z);
+      m.group.position.copy(pos);
+      m.group.rotation.y = door.rotation.y + Math.PI / 2 + side * 0.6 + (R() - 0.5) * 0.6;
+      scene.add(m.group);
+      label(base.comName, pos.clone().add(new THREE.Vector3(0, (m.height ?? 2.5) * s + 0.25, 0)), '#cfe8c8', 'hito', 10);
+      birds.push({ m, y: pos.y, ph: R() * 10, hover: plan === 'picaflor' });
+    });
+  }
+
+  // ---- la Citroneta, estacionada junto al camino (lado del mar) cerca de la puerta de llegada
+  const car = buildCar();
+  scene.add(car.group);
+  const park = code => {
+    const pr = portals.find(p => p.userData.portal.region.code === code) || portals[0];
+    const p = path[Math.max(0, pr.userData.portal.pathIndex - 14)];
+    const west = p.nx > 0 ? -1 : 1;
+    const x = p.x + p.nx * west * (HALF + 0.6), z = p.z + p.nz * west * (HALF + 0.6);
+    car.group.position.set(x, Math.max(groundAt(x, z), p.y - 0.3), z);
+    car.group.rotation.set(0, Math.atan2(p.nx, p.nz) + (west > 0 ? 0 : Math.PI), 0); // paralela al camino
+    car.v = 0;
+  };
+
+  const update = (t, dt = 0) => {
+    for (const m of swirls) m.uniforms.uOffset.value.set(Math.sin(t * 0.7) * 0.1, -t * 0.35);
+    const q = Math.floor(t * 15) / 15; // 15 Hz, como las aves de las escenas
+    for (const b of birds) {
+      const k = q + b.ph;
+      if (b.m.head) b.m.head.rotation.y = Math.sin(k * 0.9) * 0.5 * (Math.sin(k * 0.23) > 0 ? 1 : 0.2);
+      if (b.m.bodyPivot) b.m.bodyPivot.rotation.z = Math.max(0, Math.sin(k * 0.7)) > 0.93 ? -0.5 : 0; // picotea de vez en cuando
+      b.m.group.position.y = b.y + (b.hover ? 0.35 + Math.sin(k * 3) * 0.05 : Math.max(0, Math.sin(k * 0.5)) > 0.97 ? 0.05 : 0);
+    }
+  };
+  return { scene, portals, snap, heightAt, groundAt, regionAt, spawn, update, car, park };
 }
 
 function starfield(R) {
@@ -335,51 +387,4 @@ function starfield(R) {
   const stars = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xc8d0ff, size: 1.2, sizeAttenuation: false, fog: false }));
   stars.onBeforeRender = (r, s, cam) => stars.position.copy(cam.position); // el cielo acompaña a la cámara
   return stars;
-}
-
-// Puerta de región: dos pilares, dintel y umbral con el material de la zona; activa = portal que gira,
-// inactiva = tablas clavadas y candado.
-function buildDoor(style, active, R, vary) {
-  const g = new THREE.Group();
-  const T = {
-    adobe: () => makeTex(16, 16, (x, y) => vary((y % 4 === 0 || (x + (y >> 2) * 4) % 8 === 0) ? [150, 112, 78] : [198, 154, 108], 8)),
-    colonial: () => makeTex(16, 16, (x, y) => vary(y % 8 === 0 ? [200, 192, 176] : [226, 218, 200], 6)),
-    tejuela: () => makeTex(16, 16, (x, y) => vary((y % 4 === 3 || (y % 4 === 2 && x % 4 === 0)) ? [92, 62, 40] : [150, 104, 64], 10)),
-    chapa: () => makeTex(16, 16, x => vary(x % 4 < 2 ? [176, 70, 56] : [140, 52, 44], 4)),
-  };
-  const wall = mat(T[style](), { ry: 2 });
-  const top = style === 'colonial' ? mat(makeTex(16, 8, (x, y) => vary(y % 4 < 2 ? [168, 72, 52] : [132, 54, 40], 8)), { rx: 2 })
-    : style === 'chapa' ? mat(makeTex(16, 8, x => vary(x % 4 < 2 ? [150, 160, 168] : [116, 124, 132], 4)), { rx: 2 }) : wall;
-  for (const s of [-1, 1]) {
-    const pil = new THREE.Mesh(new THREE.BoxGeometry(0.55, 2.7, 0.55), wall);
-    pil.position.set(s * 1.0, 1.35, 0); g.add(pil);
-  }
-  const lint = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.5, 0.75), top);
-  lint.position.set(0, 2.9, 0); g.add(lint);
-  if (style === 'colonial' || style === 'chapa') { // techito a dos aguas
-    const roof = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.75, 3.2, 4, 1).rotateZ(Math.PI / 2).rotateX(Math.PI / 4).scale(1, 0.6, 1), top);
-    roof.position.set(0, 3.35, 0); g.add(roof);
-  }
-  const step = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.2, 1.1), wall);
-  step.position.set(0, 0.1, 0); g.add(step);
-  if (active) {
-    const swirl = mat(makeTex(16, 16, (x, y) => {
-      const d = Math.hypot(x - 7.5, y - 7.5), k = (Math.floor(d * 0.9) % 2);
-      return vary(k ? [250, 214, 96] : [255, 244, 196], 10);
-    }), { rx: 1, ry: 1 });
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(1.45, 2.45), swirl);
-    plane.position.set(0, 1.42, 0); g.add(plane);
-    g.userData.swirl = swirl;
-  } else {
-    const planks = mat(makeTex(16, 16, (x, y) => vary(x % 4 === 0 ? [52, 36, 26] : [96, 70, 48], 10)));
-    const door = new THREE.Mesh(new THREE.BoxGeometry(1.45, 2.45, 0.12), planks);
-    door.position.set(0, 1.42, 0); g.add(door);
-    for (const yb of [0.8, 2.0]) {
-      const bar = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.18, 0.16), planks);
-      bar.position.set(0, yb, 0.08); bar.rotation.z = yb > 1 ? 0.3 : -0.3; g.add(bar);
-    }
-    const lock = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.26, 0.1), mat(makeTex(4, 4, () => vary([200, 168, 60], 10))));
-    lock.position.set(0.3, 1.3, 0.16); g.add(lock);
-  }
-  return g;
 }

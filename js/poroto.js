@@ -154,6 +154,7 @@ export async function loadPoroto() {
     root.rotation.y = P.heading;
     shadow.position.set(P.pos.x, P.pos.y + 0.03, P.pos.z);
 
+    if (P.seated) waddle = 0; // manejando la Citroneta
     // caminar: balanceo de lado a lado, saltito y pasos
     body.rotation.x = waddle * 0.1;
     body.position.y = Math.abs(waddle) * 0.035;
