@@ -1,11 +1,11 @@
 // Aves en escena: comportamiento (heredado del chucao: quieto, saltar, picotear, cantar, mirar),
 // más vuelo de llegada/partida por los bordes, posarse en árboles y el vuelo suspendido del picaflor.
-// El director elige qué especies hay cada mes (datos del año típico) y quién canta (máx. 2 a la vez,
+// El director elige qué especies hay cada mes (año típico o un año concreto) y quién canta (máx. 2 a la vez,
 // con probabilidad proporcional a su frecuencia).
 /* global THREE */
 import { birdScale, BIRD_PICK_RADIUS } from './scale.js';
 import { buildBird, planFor, PLANS } from './bird.js';
-import { presentIn, freqOf, CLASS_COLORS } from './data.js';
+import { presenceIn, CLASS_COLORS } from './data.js';
 import { loadClip, playAt, playSynth, audioReady } from './audio.js';
 
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -257,8 +257,9 @@ export class BirdAgent {
 
 // ---------------------------------------------------------------------------------------
 export class Director {
-  constructor({ index, region, regionId, regionCode, root, onSing }) {
+  constructor({ index, region, regionId, regionCode, root, onSing, year = null }) {
     this.index = index; this.region = region; this.regionId = regionId; this.regionCode = regionCode; this.root = root;
+    this.year = year; // null = año típico
     this.agents = []; this.sceneKey = null; this.scene = null; this.onSing = onSing;
     this.nextSong = 2; this.acc = 0;
   }
@@ -268,11 +269,9 @@ export class Director {
     const out = [];
     for (const [sid, feat] of Object.entries(this.region.featured || {})) {
       const sp = this.index.byId.get(+sid);
-      if (!sp || feat.scene !== sceneKey || !presentIn(sp, month)) continue;
-      const cls = sp.regionalClass[String(this.regionId)];
-      if (!cls) continue;
-      const f = freqOf(this.region, sp.id, month);
-      out.push({ sp, freq: f, n: f > 900 ? 3 : 2 }); // mínimo 2: las destacadas deben verse aunque eBird las registre poco
+      if (!sp || feat.scene !== sceneKey || !sp.regionalClass[String(this.regionId)]) continue;
+      const pr = presenceIn(this.region, sp, month, this.year);
+      if (pr) out.push({ sp, ...pr });
     }
     return out;
   }
@@ -291,8 +290,10 @@ export class Director {
     for (const a of this.agents) if (!want.has(a.sp.id) && !a.leaving) a.leave();
     // llegan los que faltan
     for (const c of cast) {
-      const have = this.agents.filter(a => a.sp.id === c.sp.id && !a.leaving).length;
-      for (let i = have; i < c.n; i++) {
+      const mine = this.agents.filter(a => a.sp.id === c.sp.id && !a.leaving);
+      for (const a of mine) a.freq = c.freq;
+      for (const a of mine.slice(c.n)) a.leave(); // ese año hubo menos
+      for (let i = mine.length; i < c.n; i++) {
         const a = new BirdAgent(c.sp, this.scene, this.regionId);
         a.freq = c.freq;
         if (instant) { const p = a.choosePlace(); a.pos.copy(p); a.setState('idle', rnd(0, 2)); a.pose(p.y); }

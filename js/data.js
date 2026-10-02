@@ -111,6 +111,28 @@ export function freqOf(region, sid, m) {
   return e ? e[2] : 120;
 }
 
+// Presencia de una especie en un mes: año típico (year = null) o un año concreto. De cada año solo
+// vienen las 30 especies con más registros por mes (years[y][m].cast = [sid, reportDays, share‰]), así
+// que no estar ahí no prueba ausencia: una especie del año típico se mantiene, salvo que en el año típico
+// sea de las 15 más frecuentes del mes (entonces su ausencia sí dice algo: ese año escaseó). Y una que
+// aparece en el elenco del año fuera de su temporada típica, llegó antes o se quedó más.
+// Devuelve null (no está) o { freq: ‰ de días con registro, n: cuántas en escena, scarce?, offSeason? }.
+export function presenceIn(region, sp, m, year = null) {
+  const typical = presentIn(sp, m);
+  const f = freqOf(region, sp.id, m);
+  const base = typical ? { freq: f, n: f > 900 ? 3 : 2 } : null; // mínimo 2: las destacadas deben verse
+  const ym = year && region.years?.[year]?.[m];
+  if (!ym) return base;
+  const e = ym.cast.find(c => c[0] === sp.id);
+  if (e) {
+    const fy = Math.min(1000, e[1] / new Date(+year, m + 1, 0).getDate() * 1000);
+    return { freq: fy, n: fy > 900 ? 3 : 2, offSeason: !typical };
+  }
+  if (!typical) return null;
+  const rank = region.typical[m].findIndex(r => r[0] === sp.id);
+  return rank >= 0 && rank < 15 ? { freq: f * 0.4, n: 1, scarce: true } : base;
+}
+
 function monthsRange(sp, months) {
   const on = [...Array(12).keys()].filter(m => presentIn(sp, m));
   if (on.length >= 12) return null;
@@ -126,7 +148,7 @@ const DIET = {
   'omnívoro': 'de todo un poco', 'vertebrados/peces/carroña': 'animalitos más grandes',
 };
 
-export function birdDialog(index, sp, regionId) {
+export function birdDialog(index, sp, regionId, year = null) {
   const mv = VOICE[sp.sciName] || { art: '', hi: '¡Pío!' };
   const months = index.months;
   const cls = sp.regionalClass[String(regionId)] || sp.class;
@@ -142,6 +164,11 @@ export function birdDialog(index, sp, regionId) {
   if (top) lines.push(top.id === regionId ? 'Y donde más me registran en Chile es justo aquí.'
     : `Donde más me registran es en <b>${top.name}</b>.`);
   if (sp.bestYear) lines.push(`En ${sp.bestYear} me registraron más que nunca en relación con las demás aves.`);
+  const yi = year && sp.yearIndex?.[index.years.indexOf(+year)];
+  if (yi && String(sp.bestYear) !== year) {
+    lines.push(yi >= 115 ? `Y en ${year} me vieron más que en un año promedio.` : yi <= 85 ? `En ${year} me vieron menos que en un año promedio.`
+      : `En ${year} me vieron más o menos como siempre.`);
+  }
   const mo = sp.morphology;
   if (mo) {
     const bits = [];
@@ -152,7 +179,8 @@ export function birdDialog(index, sp, regionId) {
   return lines.join(' ');
 }
 
-export function welcomeText(index, meta, month, yearLabel = 'año típico') {
+export function welcomeText(index, meta, month, year = null, region = null) {
+  const yearLabel = year || 'año típico';
   const name = id => index.byId.get(id)?.comName;
   const ms = meta.months[month];
   const res = meta.topResidents.slice(0, 3).map(name).filter(Boolean);
@@ -160,10 +188,19 @@ export function welcomeText(index, meta, month, yearLabel = 'año típico') {
     .map(id => index.byId.get(id)).filter(s => s && presentIn(s, month)).slice(0, 3).map(s => s.comName);
   const car = meta.characteristic.slice(0, 2).map(name).filter(Boolean);
   const art = /^Metropolitana$/.test(meta.name) ? 'la ' : ''; // "la Metropolitana", pero "Valparaíso"
-  let t = `Bienvenido a ${art}<b>${meta.name}</b>, ${yearLabel}. En ${index.months[month]} se registran unas <b>${ms.richness}</b> especies. `;
+  let t = `Bienvenido a ${art}<b>${meta.name}</b>, ${yearLabel}. En ${year ? 'un ' + index.months[month] + ' típico' : index.months[month]} se registran unas <b>${ms.richness}</b> especies. `;
   t += `Nuestros residentes más vistos son ${list(res)}. `;
   if (vis.length) t += `Este mes nos visitan ${list(vis)}. `;
   if (car.length) t += `Y si tienes suerte, verás a ${list(car)}, más propios de aquí que del resto del país.`;
+  const ym = year && region?.years?.[year]?.[month];
+  if (ym) {
+    // visitantes que más destacaron ese mes por share (‰ de lo registrado), no por conteo crudo
+    const stars = ym.cast.map(([sid, , share]) => ({ sp: index.byId.get(sid), share }))
+      .filter(({ sp }) => sp && /^visitante/.test(sp.regionalClass[String(meta.id)] || ''))
+      .sort((a, b) => b.share - a.share).slice(0, 3).map(({ sp }) => sp.comName);
+    t += `<br><br>En ${index.months[month]} de ${year} se registraron <b>${ym.richness}</b> especies (un número que también depende de cuánta gente salió a observar).`;
+    if (stars.length) t += ` Entre los visitantes destacaron ${list(stars)}.`;
+  }
   return t;
 }
 

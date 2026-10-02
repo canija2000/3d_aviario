@@ -1,9 +1,10 @@
-// Aviario de Chile: PRESS START → menú de regiones (Chile flotando en el vacío) → escena de la
+// Aviario de Chile: PRESS START → menú de regiones (Chile como pasillo, js/hub.js) → escena de la
 // región (mini-escenas unidas por senderos) con aves reales mes a mes.
 /* global THREE */
-import { shared, mat, makeTex, makeVary, mulberry32, createRenderer, fitRenderer, texPlain } from './ps1.js';
+import { shared, createRenderer, fitRenderer } from './ps1.js';
 import { loadWorld, loadRegion, loadJSON, DATA_BASE, CLASS_LABEL, birdDialog, welcomeText, featuredIn } from './data.js';
 import { buildScene, signpost, WORLD } from './scene.js';
+import { buildHub } from './hub.js';
 import { loadPoroto } from './poroto.js';
 import { CAMERA, PORORO_BUBBLE_Y } from './scale.js';
 import { createMinimap } from './minimap.js';
@@ -34,7 +35,7 @@ const featuredList = () => Object.keys(G.feat || {});
 
 const G = {
   mode: 'start', index: null, reg: null, props: null, sceneKey: null, sc: null, world: null, director: null,
-  month: new Date().getMonth(), monthT: 0, paused: false, muted: false,
+  month: new Date().getMonth(), monthT: 0, paused: false, muted: false, year: null, // year: null = año típico
   hover: null, dialogOpen: false, book: loadBook(), cam: { yaw: -Math.PI / 2, pitch: CAMERA.scene.pitch, dist: CAMERA.scene.dist, target: new THREE.Vector3() },
   quirkT: 12, exits: [], portals: [],
 };
@@ -115,26 +116,14 @@ $('panel-close').onclick = () => { $('panel').hidden = true; };
 function fade(on, html = '') { $('fade-text').innerHTML = html; $('fade').classList.toggle('on', on); return new Promise(r => setTimeout(r, 650)); }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// ------------------------------------------------------------------ PS1 world helpers
-const R = mulberry32(3);
-const vary = makeVary(R);
-function starfield() {
-  const g = new THREE.BufferGeometry();
-  const pts = [];
-  for (let i = 0; i < 600; i++) {
-    const a = R() * Math.PI * 2, b = (R() - 0.3) * Math.PI, r = 120;
-    pts.push(Math.cos(a) * Math.cos(b) * r, Math.sin(b) * r, Math.sin(a) * Math.cos(b) * r);
-  }
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-  return new THREE.Points(g, new THREE.PointsMaterial({ color: 0xc8d0ff, size: 1.2, sizeAttenuation: false, fog: false }));
-}
+// ------------------------------------------------------------------ etiquetas
 // Etiquetas del mundo como HTML proyectado: el 3D va a 240p, pero el texto debe leerse nítido.
 const worldLabels = [];
-function addLabel(html, pos, color = '#eef1f8', cls = '') {
+function addLabel(html, pos, color = '#eef1f8', cls = '', maxDist = 60) {
   const el = document.createElement('div');
   el.className = 'wlabel ' + cls; el.innerHTML = html; el.style.color = color;
   document.body.appendChild(el);
-  const l = { el, pos: pos.clone() };
+  const l = { el, pos: pos.clone(), maxDist };
   worldLabels.push(l);
   return l;
 }
@@ -173,7 +162,7 @@ function updateLabels() {
   for (const l of worldLabels) {
     _v.copy(l.pos).project(camera);
     const d = camera.position.distanceTo(l.pos);
-    const show = _v.z < 1 && Math.abs(_v.x) < 1.1 && Math.abs(_v.y) < 1.1 && d < 60;
+    const show = _v.z < 1 && Math.abs(_v.x) < 1.1 && Math.abs(_v.y) < 1.1 && d < l.maxDist;
     l.el.hidden = !show;
     if (show) {
       l.el.style.left = ((_v.x + 1) / 2 * window.innerWidth) + 'px';
@@ -182,106 +171,54 @@ function updateLabels() {
   }
 }
 
-// ------------------------------------------------------------------ MENÚ DE REGIONES
-function buildHub() {
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x05060b);
-  scene.add(starfield());
-  const rm = G.index.regions.find(r => r.code === 'CL-RM');
-  const zOf = lat => -(lat - rm.lat) * 2.0;
-  const xOf = lon => (lon - rm.lon) * 1.5;
-  const stone = makeTex(16, 16, () => vary(R() < 0.3 ? [90, 84, 100] : [110, 104, 120], 10));
-  const mStone = mat(stone, { rx: 1, ry: 6 });
-  const regs = G.index.regions;
-  // la franja de Chile: tramos entre regiones consecutivas
-  const pts = regs.map(r => new THREE.Vector3(xOf(r.lon), 0, zOf(r.lat)));
-  const first = pts[0].clone(); first.z -= 3; const last = pts[pts.length - 1].clone(); last.z += 3;
-  const path = [first, ...pts, last];
-  const walk = [];
-  for (let i = 1; i < path.length; i++) {
-    const a = path[i - 1], b = path[i];
-    const len = a.distanceTo(b);
-    const seg = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.2, len + 0.6).translate(0, -0.6, 0), mStone);
-    seg.position.copy(a).lerp(b, 0.5);
-    seg.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
-    scene.add(seg);
-    walk.push([a, b]);
-  }
-  const portals = [];
-  regs.forEach((r, i) => {
-    const active = !!r.terrainFile;
-    const color = active ? 0xf4d35e : 0x505670;
-    const glow = makeTex(8, 8, () => vary(active ? [240, 200, 90] : [80, 86, 112], 12));
-    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.9, 0).scale(1, 1.5, 1), mat(glow, { tint: color }));
-    gem.position.set(pts[i].x + 3.2, 2, pts[i].z);
-    scene.add(gem);
-    addLabel(r.name, new THREE.Vector3(pts[i].x + 4.4, 2.2, pts[i].z), active ? '#f4d35e' : '#aab0c8', 'left' + (active ? ' big' : ''));
-    const proxy = new THREE.Mesh(new THREE.SphereGeometry(1.1, 6, 4), new THREE.MeshBasicMaterial({ visible: false }));
-    proxy.position.copy(gem.position); proxy.userData.portal = { region: r, active, gem };
-    scene.add(proxy);
-    portals.push(proxy);
-  });
-  scene.add(poroto.root, poroto.shadow);
-  // posición sobre la franja más cercana
-  const snap = (x, z) => {
-    let best = null, bd = 1e9;
-    for (const [a, b] of walk) {
-      const ab = b.clone().sub(a), t = Math.max(0, Math.min(1, ((x - a.x) * ab.x + (z - a.z) * ab.z) / ab.lengthSq()));
-      const p = a.clone().addScaledVector(ab, t);
-      const d = Math.hypot(p.x - x, p.z - z);
-      if (d < bd) { bd = d; best = p; }
-    }
-    return { p: best, d: bd };
-  };
-  // región más cercana a un punto del camino (para el mini-mapa)
-  const regionAt = (x, z) => regs[pts.reduce((bi, p, i) => (Math.hypot(p.x - x, p.z - z) < Math.hypot(pts[bi].x - x, pts[bi].z - z) ? i : bi), 0)];
-  return { scene, portals, snap, regionAt, rmPoint: pts[regs.indexOf(rm)], heightAt: () => 0 };
-}
-
+// ------------------------------------------------------------------ MENÚ DE REGIONES (js/hub.js)
 async function enterHub() {
   G.mode = 'hub';
   setAmbience(null);
   clearLabels();
-  G.hubWorld = buildHub();
+  G.hubWorld = buildHub({ index: G.index, relief: G.relief, label: addLabel, poroto });
   G.hubRegion = null;
   G.world = G.hubWorld.scene;
-  applyLight('primavera', 0x05060b, 30, 90);
-  poroto.pos.copy(G.hubWorld.rmPoint); poroto.pos.x -= 0.5;
-  poroto.drop = 14; poroto.heading = -Math.PI / 2;
+  applyLight('primavera', 0x070912, 26, 80);
+  poroto.pos.copy(G.hubWorld.spawn('CL-RM'));
+  poroto.drop = 14; poroto.heading = Math.PI / 2; // mirando al norte, por el pasillo
   poroto.season = 'primavera';
   G.cam.dist = CAMERA.hub.dist; G.cam.pitch = CAMERA.hub.pitch; G.cam.yaw = CAMERA.hub.yaw; G.cam.distGoal = G.cam.pitchGoal = G.cam.yawGoal = undefined;
   G.cam.target.copy(poroto.pos);
   $('hud').hidden = true;
   await fade(false);
   const open = G.index.regions.filter(r => r.terrainFile).map(r => `<b>${r.name}</b>`);
-  toast(`Camina con las <b>flechas</b> (espacio para correr) hasta un portal (WASD mueve la cámara) o abre el <b>mapa</b> (M) para viajar. Se puede entrar a ${open.join(', ')}.`, 7);
+  toast(`Chile es un pasillo entre los Andes y el mar: camina con las <b>flechas</b> (espacio para correr) hasta la puerta de una región, o abre el <b>mapa</b> (M) para viajar. Están abiertas ${open.join(', ')}.`, 8);
 }
 
 function portalClicked(p) {
   const r = p.region;
   if (!p.active) { say(`${r.name}: próximamente`); blip(220, 0.1); return; }
-  poroto.look = p.gem.position.clone();
-  openDialog(`Portal a la <b>${r.fullName || r.name}</b>. ¿Qué año quieres visitar?`, [
-    { label: 'Año típico', fn: () => enterRegion(r.code) },
-    ...G.index.years.slice(-3).map(y => ({ label: String(y), disabled: true, title: 'Selector de año: después del MVP' })),
+  poroto.look = p.anchor.clone();
+  openDialog(`Puerta a la <b>${r.fullName || r.name}</b>. ¿Qué año quieres visitar? El <b>año típico</b> resume 2017–2024.`, [
+    { label: 'Año típico', fn: () => enterRegion(r.code, { year: null }) },
+    ...G.index.years.map(y => ({ label: String(y), fn: () => enterRegion(r.code, { year: String(y) }) })),
     { label: 'Volver' },
   ]);
 }
 
 // ------------------------------------------------------------------ REGIÓN Y ESCENAS
 async function enterRegion(code, opts = {}) {
+  if (opts.year !== undefined) G.year = opts.year;
+  $('toast').hidden = true;
   await fade(true, 'Cargando la región…');
   G.reg = await loadRegion(G.index, code);
+  if (G.year && !G.reg.region.years?.[G.year]) G.year = null;
   try { G.props = await loadJSON(DATA_BASE + `props-${code}.json`); } catch { G.props = null; }
   G.feat = featuredIn(G.index, G.reg.region);
-  G.director = new Director({ index: G.index, region: G.reg.region, regionId: G.reg.meta.id, regionCode: code, root: null, onSing });
+  G.director = new Director({ index: G.index, region: G.reg.region, regionId: G.reg.meta.id, regionCode: code, root: null, onSing, year: G.year });
   G.mode = 'scene';
   await loadSceneKey(sceneOrder()[0], null, false);
   if (opts.drop) { poroto.drop = 14; poroto.dropMsg = `¡Llegamos a ${G.reg.meta.name}!`; }
   poroto.root.visible = true;
   $('hud').hidden = false;
   await fade(false);
-  openDialog(welcomeText(G.index, G.reg.meta, G.month), [{ label: '¡Vamos!' }]);
+  openDialog(welcomeText(G.index, G.reg.meta, G.month, G.year, G.reg.region), [{ label: '¡Vamos!' }]);
 }
 
 async function loadSceneKey(key, fromKey, withFade = true) {
@@ -370,6 +307,10 @@ function setMonth(m) {
   G.month = (m + 12) % 12;
   G.monthT = 0;
   applySeason();
+  recast();
+}
+// Rehace el elenco (cambio de mes o de año) y avisa quién llega.
+function recast() {
   if (G.director) {
     const before = new Set(G.director.agents.map(a => a.sp.id));
     const cast = G.director.setMonth(G.month, false);
@@ -378,15 +319,32 @@ function setMonth(m) {
   }
   updateHud();
 }
+function setYear(y) {
+  G.year = y;
+  if (G.director) G.director.year = y;
+  toast(y ? `Viajamos a <b>${y}</b>: las aves y su abundancia son las registradas ese año.` : 'Volvemos al <b>año típico</b> (2017–2024).', 3.5);
+  recast();
+}
+function chooseYear() {
+  openDialog(`¿Qué año quieres ver en <b>${G.reg.meta.name}</b>? Cada año muestra las aves que más se registraron mes a mes; el año típico resume los ocho.`, [
+    { label: 'Año típico', disabled: !G.year, fn: () => setYear(null) },
+    ...G.index.years.map(y => ({ label: String(y), disabled: G.year === String(y), fn: () => setYear(String(y)) })),
+    { label: 'Cerrar' },
+  ]);
+}
 
 function updateHud() {
   if (!G.reg) return;
   const meta = G.reg.meta, ms = meta.months[G.month];
-  $('hud-region').innerHTML = `<b>${meta.name}</b> · año típico`;
+  $('hud-region').innerHTML = `<b>${meta.name}</b> · ${G.year || 'año típico'}`;
+  $('b-year').textContent = G.year || 'AÑO TÍPICO';
   $('hud-scene').textContent = `${SCENE_LABEL[G.sceneKey]} — ${G.reg.terrain.scenes[G.sceneKey].name}`;
   const mn = G.index.months[G.month];
   $('hud-month').innerHTML = `<b>${mn[0].toUpperCase() + mn.slice(1)}</b> · ${SEASON_OF[G.month]}`;
-  $('hud-rich').innerHTML = `${ms.richness} especies en la región<br>${ms.residente} res · ${ms.visitante_estival} verano · ${ms.visitante_invernal} invierno`;
+  const ym = G.year && G.reg.region.years?.[G.year]?.[G.month];
+  $('hud-rich').innerHTML = ym
+    ? `${ym.richness} especies registradas en ${G.year}<br><span title="Año típico. La riqueza de un año depende también de cuántas personas salieron a observar.">típico: ${ms.residente} res · ${ms.visitante_estival} verano · ${ms.visitante_invernal} invierno</span>`
+    : `${ms.richness} especies en la región<br>${ms.residente} res · ${ms.visitante_estival} verano · ${ms.visitante_invernal} invierno`;
   // rueda de estaciones
   const w = $('wheel'); let svg = '';
   for (let m = 0; m < 12; m++) {
@@ -486,9 +444,6 @@ function pick(ev) {
       const best = hits.reduce((a, h) => (ray.ray.distanceToPoint(h.object.position) < ray.ray.distanceToPoint(a.object.position) ? h : a));
       return { portal: best.object.userData.portal };
     }
-    const pl = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-    const p = new THREE.Vector3();
-    if (ray.ray.intersectPlane(pl, p)) return { ground: p };
     return {};
   }
   if (G.mode !== 'scene') return {};
@@ -569,10 +524,11 @@ function afterDrive() {
   if (!poroto.drive) return;
   if (G.mode === 'hub') {
     const { p, d } = G.hubWorld.snap(poroto.pos.x, poroto.pos.z);
-    if (d > 1.3) { poroto.pos.x = p.x + (poroto.pos.x - p.x) * 1.3 / d; poroto.pos.z = p.z + (poroto.pos.z - p.z) * 1.3 / d; }
+    const MAXD = 0.85; // media anchura caminable del pasillo
+    if (d > MAXD) { poroto.pos.x = p.x + (poroto.pos.x - p.x) * MAXD / d; poroto.pos.z = p.z + (poroto.pos.z - p.z) * MAXD / d; }
     const near = G.hubWorld.portals.find(pr => {
-      const g = pr.userData.portal.gem.position;
-      return Math.hypot(g.x - 3.2 - poroto.pos.x, g.z - poroto.pos.z) < 1.1;
+      const s = pr.userData.portal.stop;
+      return Math.hypot(s.x - poroto.pos.x, s.z - poroto.pos.z) < 1.2;
     });
     if (near && near !== G.nearPortal) {
       if (near.userData.portal.active) { keys.clear(); poroto.drive = null; } // se detiene solo en portales activos
@@ -625,7 +581,7 @@ function birdClicked(a) {
   blip(880);
   poroto.look = a.pos.clone(); poroto.binoc = 1;
   const isNew = !G.book.has(a.sp.id);
-  openDialog(birdDialog(G.index, a.sp, G.reg.meta.id), [
+  openDialog(birdDialog(G.index, a.sp, G.reg.meta.id, G.year), [
     { label: '♪ Escuchar', keep: true, fn: async () => { const d = await G.director.singNow(a, true); portrait.sing(d || 2); } },
     { label: 'Cerrar' },
   ], { bird: a });
@@ -641,6 +597,7 @@ function birdClicked(a) {
 // ------------------------------------------------------------------ paneles
 $('b-pause').onclick = () => { G.paused = !G.paused; updateHud(); blip(); };
 $('b-next').onclick = () => { setMonth(G.month + 1); blip(); };
+$('b-year').onclick = () => { blip(); chooseYear(); };
 function toggleNames() { showNames = !showNames; $('b-names').classList.toggle('off', !showNames); }
 $('b-names').onclick = toggleNames;
 $('b-sound').onclick = () => { G.muted = !G.muted; setMuted(G.muted); $('b-sound').classList.toggle('off', G.muted); };
@@ -664,7 +621,7 @@ $('b-credits').onclick = () => {
   <p><b>Datos de aves:</b> GBIF.org (2026), descargas de ocurrencias de Aves en Chile (principalmente eBird), años 2017–2024; métricas corregidas por esfuerzo de muestreo. Proyecto <i>Nómadas & sedentarios</i> (Visualización de Información 2026-2).</p>
   <p><b>Cantos:</b> Xeno-canto (licencias Creative Commons por grabación):</p><ul>${clips}</ul>
   <p>Las especies sin grabación en el set (como la Turca) tienen un canto sintético.</p>
-  <p><b>Morfología y hábitat:</b> AVONET (Tobias et al. 2022, CC BY 4.0) y EltonTraits 1.0 (Wilman et al. 2014, CC0). <b>Paletas:</b> derivadas de fotos de referencia de iNaturalist (CC0 / CC BY / CC BY-SA; autores en los datos), con zonas anotadas a mano o con un modelo de visión (Qwen3-VL) y revisadas por una persona. <b>Terreno:</b> AWS Terrain Tiles, ESA WorldCover 2021 (CC BY 4.0) y © OpenStreetMap (ODbL).</p>
+  <p><b>Morfología y hábitat:</b> AVONET (Tobias et al. 2022, CC BY 4.0) y EltonTraits 1.0 (Wilman et al. 2014, CC0). <b>Paletas:</b> derivadas de fotos de referencia de iNaturalist (CC0 / CC BY / CC BY-SA; autores en los datos), con zonas anotadas a mano o con un modelo de visión (Qwen3-VL) y revisadas por una persona. <b>Terreno:</b> AWS Terrain Tiles (SRTM, GMTED2010, ETOPO1 y batimetría GEBCO; también el relieve del pasillo de Chile), ESA WorldCover 2021 (CC BY 4.0) y © OpenStreetMap (ODbL).</p>
   <p class="dim">Clic para caminar · clic en un ave para conocerla · rueda: zoom · Q/E o ←/→: girar la cámara · N: nombres de las aves.</p>`);
 };
 
@@ -749,7 +706,7 @@ function chooseRegion(code) {
 
 // ------------------------------------------------------------------ inicio
 async function start() {
-  if (G.mode !== 'start' || !G.index) return;
+  if (G.mode !== 'start' || !G.index || !G.relief) return;
   unlockAudio(); blip(660, 0.08); setTimeout(() => blip(990, 0.1), 90);
   $('start').hidden = true;
   await fade(true, '');
@@ -775,7 +732,7 @@ function frame(now) {
     else if ((G.hubRegionT = (G.hubRegionT ?? 0) - dt) <= 0) {
       G.hubRegionT = 0.4;
       const r = G.hubWorld.regionAt(poroto.pos.x, poroto.pos.z);
-      if (r.code !== G.hubRegion) { G.hubRegion = r.code; minimap.setHub({ chileMap: G.chileMap, regionCode: r.code, regionName: r.name }); }
+      if (r && r.code !== G.hubRegion) { G.hubRegion = r.code; minimap.setHub({ chileMap: G.chileMap, regionCode: r.code, regionName: r.name }); }
     }
     if (poroto.drop > 0) {
       poroto.drop = Math.max(0, poroto.drop - dt * 18);
@@ -783,6 +740,7 @@ function frame(now) {
       if (poroto.drop === 0) { blip(160, 0.12); say(poroto.dropMsg || '¡Hola! Soy Poroto.'); poroto.dropMsg = null; }
     }
     if (st.sleep && bubble.hidden) say('Zzz…', 2);
+    if (G.mode === 'hub') G.hubWorld.update(now / 1000);
     if (G.mode === 'scene') {
       G.director.update(dt, G.paused);
       G.sc.animate?.(now / 1000);
@@ -803,6 +761,7 @@ function frame(now) {
     const cp = Math.cos(c.pitch);
     camera.position.set(c.target.x + cp * Math.cos(c.yaw) * c.dist, c.target.y + Math.sin(c.pitch) * c.dist, c.target.z - cp * Math.sin(c.yaw) * c.dist);
     if (G.mode === 'scene') camera.position.y = Math.max(camera.position.y, G.sc.heightAt(camera.position.x, camera.position.z) + 1.5);
+    else camera.position.y = Math.max(camera.position.y, G.hubWorld.groundAt(camera.position.x, camera.position.z) + 0.8);
     camera.lookAt(c.target);
     camera.updateMatrixWorld();
     shared.uLightDir.value.set(0.45, 1, 0.35).normalize().transformDirection(camera.matrixWorldInverse);
@@ -830,10 +789,11 @@ renderer.setClearColor(0x05060b);
 loadWorld().then(async idx => {
   G.index = idx;
   try { G.chileMap = await loadJSON(DATA_BASE + 'chile-map.json'); } catch { G.chileMap = null; }
+  G.relief = await loadJSON(DATA_BASE + 'chile-relief.json');
 }).catch(err => {
   document.querySelector('#start .hint').textContent = 'No se pudieron cargar los datos: ' + err.message;
 });
 requestAnimationFrame(frame);
 
 // para depurar desde la consola
-window.G = G; window.camera = camera; window.poroto = poroto; window.dbg = { enterRegion, travel, setMonth };
+window.G = G; window.camera = camera; window.poroto = poroto; window.dbg = { enterRegion, travel, setMonth, setYear };
