@@ -18,7 +18,7 @@ export class BirdAgent {
     this.plan = planFor(sp);
     this.traits = PLANS[this.plan] || {};
     this.m = buildBird(sp, this.plan);
-    this.s = birdScale(sp); // tabla de escala: largo real × exageración (js/scale.js)
+    this.s = birdScale(sp, this.plan); // tabla de escala: largo real × exageración (js/scale.js)
     this.m.group.scale.setScalar(this.s);
     this.cls = sp.regionalClass[String(regionId)] || sp.class;
     this.color = CLASS_COLORS[this.cls] || '#ffffff';
@@ -232,7 +232,7 @@ export class BirdAgent {
     m.legs.forEach((l, i) => { l.rotation.z = flying ? 0.9 : walking ? stride * (i ? 0.5 : -0.5) : -0.7 * hopK; });
     m.group.rotation.z = this.traits.waddle && (walking || this.state === 'hop') ? Math.sin(performance.now() / 90) * 0.18 : 0;
     const flap = soaring ? 0.05 * Math.sin(performance.now() / 400) : flying ? Math.sin(performance.now() / (this.plan === 'picaflor' ? 12 : 60)) : 0;
-    for (const w of m.wings) { w.rotation.x = w.userData.side * (soaring ? 1.35 + flap : flying ? 0.3 + flap * 1.1 : 0); }
+    for (const w of m.wings) { w.rotation.x = w.userData.side * (soaring ? 1.35 + flap : flying ? 0.3 + flap * 1.1 : this.traits.flippers ? Math.PI - 0.3 + Math.sin(performance.now() / 300) * 0.08 : 0); } // pingüino: aletas colgando
     for (const l of m.legs) l.visible = !(this.swimming && !flying);
     m.group.rotation.x = soaring ? 0.25 * (this.soar?.dir || 1) : 0;
     let bodyTilt = 0, headTilt = this.pitch, open = 0, puff = 1;

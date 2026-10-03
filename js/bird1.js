@@ -162,12 +162,63 @@ function paintSpecies(sp, P, layout) {
   });
 }
 
+// ---------- alas de vuelo: planta del ala según el tipo de vuelo (solo se ven al volar) ----------
+// La envergadura sale del largo del modelo (3,6 a escala 1) × razón envergadura/largo del grupo:
+// planeadoras anchas con "dedos" (cóndor, jote), largas y en punta (gaviotas, pelícano), en punta
+// (patos, palomas, playeros), redondeadas (paseriformes) y en hoz (picaflor). El ala va en el plano x-y:
+// x = cuerda (adelante +), y = envergadura (la rotación en x la abre hacia el costado).
+const WING_STYLE = {
+  rapaz: ['ancha', 2.6], pelicano: ['larga', 2.5], gaviota: ['larga', 2.4], cormoran: ['punta', 1.8], garza: ['ancha', 2.1],
+  pato: ['punta', 1.7], cisne: ['punta', 1.8], flamenco: ['punta', 1.9], playero: ['punta', 1.8], paloma: ['punta', 1.7],
+  loro: ['punta', 1.6], picaflor: ['hoz', 1.3], pinguino: ['aleta', 0.75], nandu: ['redonda', 0.9],
+};
+export function flightWing(sp, plan, P, hwi = 20) {
+  const [style, ratio] = WING_STYLE[plan] || ['redonda', 1.6];
+  const span = Math.max(0.5, 3.6 * ratio / 2 - 0.35) * (style === 'aleta' || style === 'hoz' ? 1 : 0.9 + Math.min(0.25, hwi / 200));
+  const cRoot = style === 'ancha' ? 1.05 : style === 'larga' ? 0.75 : style === 'aleta' ? 0.42 : style === 'hoz' ? 0.4 : 0.8;
+  const N = 8, le = [], te = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N, y = t * span;
+    let c, sweep = 0;
+    if (style === 'ancha') c = cRoot * (1 - 0.15 * t);
+    else if (style === 'redonda') c = cRoot * Math.sqrt(Math.max(0.02, 1 - t ** 3));
+    else if (style === 'aleta') c = cRoot * (1 - 0.6 * t);
+    else { c = cRoot * (1 - 0.85 * t ** 1.4); sweep = (style === 'hoz' ? 0.5 : 0.28) * span * t ** 2 * (style === 'larga' ? 0.6 : 0.4); }
+    le.push([0.25 * cRoot - sweep, y]); te.push([0.25 * cRoot - sweep - c, y]);
+  }
+  const pts = [...le];
+  if (style === 'ancha') { // primarias separadas como dedos en la punta
+    const tip = span, x0 = le[N][0], x1 = te[N][0], k = 5;
+    for (let j = 0; j < k; j++) {
+      const xa = x0 + (x1 - x0) * j / k, xb = x0 + (x1 - x0) * (j + 0.6) / k;
+      pts.push([xa, tip + 0.28 * (1 - j * 0.12)], [xb, tip + 0.22 * (1 - j * 0.12)], [x0 + (x1 - x0) * (j + 1) / k, tip]);
+    }
+  }
+  pts.push(...te.reverse());
+  const shape = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
+  const geo = new THREE.ShapeGeometry(shape);
+  const pos = geo.attributes.position, uv = geo.attributes.uv;
+  const xMax = 0.25 * cRoot, xMin = xMax - cRoot - 0.5 * span * 0.3;
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, Math.min(1, pos.getY(i) / span), (pos.getX(i) - xMin) / (xMax - xMin));
+  // textura: cobertoras (borde de ataque) del color del dorso, ala al medio, primarias oscuras en la mano
+  const R = mulberry32(3000 + sp.id), vary = makeVary(R);
+  const hand = style === 'aleta' ? 2 : style === 'hoz' ? 0.35 : 0.58;
+  const tex = makeTex(32, 16, (x, y) => {
+    const u = (x + 0.5) / 32, v = 1 - (y + 0.5) / 16;
+    if (u > hand) return vary(P.back_dark, 6);
+    if (v > 0.82) return vary(P.back, 6);
+    if (v < 0.12) return vary(P.back_dark.map(k => k * 1.1), 6); // borde de fuga
+    return vary(P.wing, 7);
+  });
+  return { geo, tex, span };
+}
+
 /**
  * Construye el ave de una pieza. `ctx` trae lo que bird.js ya calculó (plan, factores AVONET, paleta y
  * geometrías de patas/ala) para no duplicar lógica.
  */
 export function buildBirdOnePiece(sp, plan, ctx) {
-  const { pl, f, hs, headBase, bl, br, legLen, P, wingGeo, wingLen, footGeo, tarsusGeo } = ctx;
+  const { pl, f, hs, headBase, bl, br, legLen, P, footGeo, tarsusGeo } = ctx;
   const { R, tip, tailPivot, C } = skeleton(pl, f, hs, headBase, bl, br, plan);
 
   // ---- malla: anillos + punta del pico; u por largo acumulado ----
@@ -247,11 +298,13 @@ export function buildBirdOnePiece(sp, plan, ctx) {
   }
 
   // alas de vuelo: solo visibles al aletear
-  const mWing = mat(ctx.wingTex, { twoSided: true });
+  const fw = flightWing(sp, plan, P, ctx.hwi);
+  const mWing = mat(fw.tex, { twoSided: true });
   const wings = [];
   for (const s of [-1, 1]) {
-    const w = new THREE.Group(); w.position.copy(C).add(new THREE.Vector3(0.05, 0.25, s * pl.body[2] * 0.85)); bodyPivot.add(w);
-    const m = new THREE.Mesh(s > 0 ? wingGeo : wingGeo.clone().scale(1, 1, -1), mWing); m.visible = false; w.add(m);
+    const w = new THREE.Group(); w.position.copy(C).add(new THREE.Vector3(0.1, 0.3, s * pl.body[2] * 0.8)); bodyPivot.add(w);
+    const m = new THREE.Mesh(s > 0 ? fw.geo : fw.geo.clone().scale(1, 1, -1), mWing); m.visible = false; w.add(m);
+    if (pl.flippers) w.rotation.x = s * (Math.PI - 0.3); // aletas del pingüino, colgando a los costados
     w.userData.side = s; w.userData.mesh = m; wings.push(w);
   }
   // patas (como en el ave por piezas)
@@ -271,7 +324,7 @@ export function buildBirdOnePiece(sp, plan, ctx) {
   let lastKey = '';
   body.onBeforeRender = () => {
     const key = `${head.rotation.y.toFixed(3)},${head.rotation.z.toFixed(3)},${tail.rotation.z.toFixed(3)},${torso.scale.x.toFixed(3)}`;
-    for (const w of wings) w.userData.mesh.visible = Math.abs(w.rotation.x) > 0.05;
+    for (const w of wings) w.userData.mesh.visible = pl.flippers || Math.abs(w.rotation.x) > 0.05;
     if (key === lastKey) return;
     lastKey = key;
     head.updateMatrix(); tail.updateMatrix();
