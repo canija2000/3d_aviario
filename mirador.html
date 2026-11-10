@@ -21,30 +21,47 @@
   <div class="eye">
     <div class="e-top"><div class="e-place"></div><div class="e-date"></div></div>
     <div class="e-compass"><div class="e-strip"></div><i class="e-needle"></i></div>
-    <div class="e-reticle"><i></i></div>
+    <div class="e-reticle"><i></i><b class="ring"></b></div>
     <div class="e-zoom"></div>
     <div class="e-card" hidden></div>
     <div class="e-toast" hidden></div>
     <div class="e-book" hidden></div>
-    <div class="e-menu" hidden></div>
+    <div class="e-sky" hidden></div>
   </div>
 </template>
 
-<!-- Pantalla de inicio: se usa con el teléfono fuera de los binoculares -->
-<div id="start" class="screen setup">
-  <h1>MIRADOR<small>aves de Chile · 2024</small></h1>
-  <p class="hint" id="start-status">Cargando datos…</p>
-  <div class="setup-box win">
-    <label class="row"><input type="checkbox" id="opt-bino"> Vista de binoculares (dos lentes)</label>
+<!-- 1. Elegir zona (se llega con el QR de la región: mirador.html?r=CL-AP). Fuera del visor. -->
+<div id="pick" class="screen setup">
+  <h1>MIRADOR<small id="pick-sub">aves de Chile · 2024</small></h1>
+  <p class="hint" id="pick-status">Cargando datos…</p>
+  <div id="pick-list" class="pick-list"></div>
+  <details class="setup-box win" id="lens-box">
+    <summary>Ajustar el visor</summary>
+    <label class="row"><input type="checkbox" id="opt-bino"> Dos lentes (binoculares)</label>
     <div id="lens-opts">
-      <label class="row">Separación de los lentes <input type="range" id="opt-sep" min="25" max="50" step="0.5"><output id="out-sep"></output></label>
-      <label class="row">Tamaño de cada lente <input type="range" id="opt-dia" min="15" max="50" step="0.5"><output id="out-dia"></output></label>
+      <label class="row">Separación <input type="range" id="opt-sep" min="25" max="50" step="0.5"><output id="out-sep"></output></label>
+      <label class="row">Tamaño <input type="range" id="opt-dia" min="15" max="50" step="0.5"><output id="out-dia"></output></label>
       <p class="dim">Ajusta hasta que cada círculo quede centrado en su tubo (los centros van a 62 mm).</p>
     </div>
-    <button class="btn big" id="b-start" disabled>EMPEZAR</button>
-    <p class="dim">FOTO (espacio): fotografiar · INFO (enter): ficha · rueda (Z / X): zoom<br>
-      Mantener INFO (M): mes siguiente · mantener FOTO (Esc): volver al menú · mirar al suelo: libreta</p>
-  </div>
+  </details>
+</div>
+
+<!-- 2. Poner el teléfono en el visor: empieza solo cuando el teléfono queda de lado y quieto. -->
+<div id="place" class="screen setup" hidden>
+  <div class="place-art" aria-hidden="true"><i></i></div>
+  <h2 id="place-title">Pon el teléfono en el visor</h2>
+  <p id="place-msg">Gíralo de lado, con la pantalla hacia los tubos, y míralo como unos binoculares.</p>
+  <p class="dim">Empieza solo cuando el teléfono quede quieto.</p>
+  <button class="btn" id="b-enter">Entrar sin sensores</button>
+  <button class="btn ghost" id="b-back1">Elegir otra zona</button>
+</div>
+
+<!-- 3. Pausa: al sacar el teléfono del visor (queda vertical) o al tocar la pantalla. -->
+<div id="pause" class="screen setup" hidden>
+  <h2>Pausa</h2>
+  <p id="pause-msg"></p>
+  <button class="btn big" id="b-resume">Volver al visor</button>
+  <button class="btn ghost" id="b-back2">Elegir otra zona</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

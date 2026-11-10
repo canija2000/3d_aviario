@@ -4,8 +4,12 @@
 // año; las que no se registran ese mes dejan su lugar vacío. La mira elige el ave más cercana al centro:
 // canta y muestra su ficha. Datos de un solo año (YEAR), mes a mes.
 //
-// Teclas (las mismas que manda arduino/binoculares_teclado): Espacio = foto · Enter = ficha ·
-// Z / X = zoom · M = mes siguiente · Esc = menú. En el menú, Z / X mueven y Espacio o Enter eligen.
+// Flujo: el QR de cada región abre mirador.html?r=CL-XX → se elige una zona tocando → se pone el teléfono
+// en el visor (empieza solo cuando queda de lado y quieto) → se explora solo con el giroscopio:
+// mantener un ave en la mira abre su ficha y la acerca, y si se sigue mirando la fotografía; mirar al
+// cielo pasa al mes siguiente; mirar al suelo abre la libreta; sacar el teléfono (vertical) pausa.
+// El teclado (o el Arduino de arduino/binoculares_teclado) sigue sirviendo: Espacio = foto ·
+// Enter = ficha · Z / X = zoom · M = mes siguiente · Esc = pausa.
 /* global THREE */
 import { shared, createRenderer } from './ps1.js';
 import { loadWorld, loadRegion, loadJSON, DATA_BASE, CLASS_LABEL, featuredIn, presenceIn, presentIn } from './data.js';
@@ -25,6 +29,10 @@ const CFG = {
   lockDeg: 3.5, lockFov: 0.2, // la mira toma un ave a menos de max(lockDeg, lockFov × campo visual) del centro
   resing: 8, // s entre cantos mientras el ave sigue en la mira
   bookPitch: -0.8, // rad: mirar al suelo abre la libreta
+  skyPitch: 0.75, skyHold: 2.0, // rad y s: mirar al cielo ese tiempo pasa al mes siguiente
+  dwellCard: 1.2, dwellPhoto: 3.4, // s con el ave en la mira hasta abrir la ficha y hasta tomar la foto
+  frame: 0.3, // con la ficha abierta, el zoom deja el ave en esta fracción del campo visual
+  placeHold: 1.2, // s de lado y quieto para empezar
 };
 const SEASON_OF = ['verano', 'verano', 'otoño', 'otoño', 'otoño', 'invierno', 'invierno', 'invierno', 'primavera', 'primavera', 'primavera', 'verano'];
 const LIGHT = {
@@ -49,11 +57,12 @@ const renderer = createRenderer(canvas);
 const camera = new THREE.PerspectiveCamera(CFG.fovWide, 1, 0.3, 200);
 
 const S = {
-  mode: 'start', index: null, reg: null, props: null, sceneKey: null, sc: null, world: null,
+  mode: 'pick', index: null, reg: null, props: null, sceneKey: null, sc: null, world: null,
   zoneSpecies: [], slots: new Map(), birds: [], marks: [],
   month: q.has('m') ? clamp(+q.get('m'), 0, 11) : new Date().getMonth(), monthT: 0,
   heading: 0, pitch: 0, fov: CFG.fovWide, fovGoal: CFG.fovWide,
-  locked: null, cand: null, candT: 0, lockT: 0, cardOpen: false, bookKey: false, bookOn: false, menu: null, shot: false,
+  locked: null, cand: null, candT: 0, lockT: 0, cardOpen: false, bookKey: false, bookOn: false, shot: false,
+  dwell: 0, shotDone: false, manualZoom: false, skyT: 0, placeT: 0, placeLast: null, phone: matchMedia('(pointer: coarse)').matches,
   bino: q.has('mono') ? false : q.has('bino') ? true : matchMedia('(pointer: coarse)').matches,
   lens: Object.assign({ sep: 41, dia: 36 }, store('mirador.lentes')), // % del ancho de la pantalla
   eyes: [], rects: [], k: 1,
@@ -105,55 +114,77 @@ function toast(h, secs = 3) {
   clearTimeout(toastH); toastH = setTimeout(() => show('.e-toast', false), secs * 1000);
 }
 
-// ------------------------------------------------------------------ menús (región y zona)
-function openMenu(title, items, sel = 0, back = null) {
-  S.menu = { title, items, sel, back };
-  S.mode = 'menu';
-  document.body.classList.add('menu');
-  for (const e of S.eyes) e.classList.add('menu-on');
-  for (const s of ['.e-top', '.e-compass', '.e-reticle', '.e-zoom', '.e-card', '.e-book']) show(s, false);
-  show('.e-menu', true);
-  renderMenu();
+// ------------------------------------------------------------------ pantallas (fuera del visor)
+function showScreen(id) { // pick | place | pause | null (explorando)
+  for (const k of ['pick', 'place', 'pause']) $(k).hidden = k !== id;
+  showHud(!id);
 }
-function renderMenu() {
-  const m = S.menu;
-  html('.e-menu', `<h3>${m.title}</h3><ul>${m.items.map((it, i) =>
-    `<li data-i="${i}" class="${i === m.sel ? 'sel' : ''}">${it.label}${it.sub ? `<small>${it.sub}</small>` : ''}</li>`).join('')}</ul>
-    <p class="hint">rueda: mover · FOTO: elegir</p>`);
+function showHud(on) { for (const sel of ['.e-top', '.e-compass', '.e-reticle', '.e-zoom']) show(sel, on); if (!on) for (const sel of ['.e-card', '.e-book', '.e-sky', '.e-toast']) show(sel, false); }
+
+function regionList() {
+  S.mode = 'pick'; showScreen('pick');
+  $('pick-sub').textContent = `aves de Chile · ${YEAR}`;
+  $('pick-status').textContent = 'Elige una región (o escanea su código QR).';
+  $('pick-list').innerHTML = CFG.regions.map(code => {
+    const meta = S.index.regions.find(r => r.code === code), feat = progress.regions[code];
+    const n = feat ? feat.filter(sid => progress.album[sid]).length : 0;
+    return `<button data-r="${code}"><b>${meta.name}</b><small>${feat ? 'visitada' : 'sin visitar'}</small><span class="n">${feat ? `${n}/${feat.length}` : ''}</span></button>`;
+  }).join('');
 }
-function closeMenu() {
-  S.menu = null;
-  document.body.classList.remove('menu');
-  for (const e of S.eyes) e.classList.remove('menu-on');
-  show('.e-menu', false);
-  for (const s of ['.e-top', '.e-compass', '.e-reticle', '.e-zoom']) show(s, true);
+function zoneList() {
+  S.mode = 'pick'; showScreen('pick');
+  const scenes = S.reg.terrain.scenes;
+  $('pick-sub').textContent = `${S.reg.meta.name} · ${YEAR}`;
+  $('pick-status').textContent = 'Elige una zona. Después vas a poner el teléfono en el visor.';
+  $('pick-list').innerHTML = Object.keys(scenes).map(key => {
+    const sids = zoneSids(key), n = sids.filter(sid => progress.album[sid]).length;
+    return `<button data-z="${key}"><b>${SCENE_LABEL[key] || cap(key)}</b><small>${scenes[key].name}</small><span class="n">${n}/${sids.length}</span></button>`;
+  }).join('') + (q.get('r') ? '' : '<button data-back="1"><small>← Otra región</small></button>');
 }
-function menuMove(d) { const m = S.menu; m.sel = (m.sel + d + m.items.length) % m.items.length; blip(700, 0.03); renderMenu(); }
-function menuPick(i = S.menu.sel) { const it = S.menu.items[i]; if (it) { blip(990, 0.06); it.fn(); } }
-$('eyes').addEventListener('click', e => {
-  const li = e.target.closest('.e-menu li'); if (li && S.menu) menuPick(+li.dataset.i);
+$('pick-list').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.r) { history.replaceState(null, '', `?r=${b.dataset.r}`); enterRegion(b.dataset.r); }
+  else if (b.dataset.z) pickZone(b.dataset.z);
+  else if (b.dataset.back) { history.replaceState(null, '', location.pathname); regionList(); }
 });
 
-function regionMenu() {
-  const items = CFG.regions.map(code => {
-    const meta = S.index.regions.find(r => r.code === code);
-    const feat = progress.regions[code];
-    const n = feat ? feat.filter(s => progress.album[s]).length : 0;
-    return { label: meta.name, sub: feat ? `${n} de ${feat.length} aves fotografiadas` : 'sin visitar', fn: () => enterRegion(code) };
-  });
-  const cur = S.reg ? CFG.regions.indexOf(S.reg.meta.code) : 0;
-  openMenu(`ELIGE UNA REGIÓN · ${YEAR}`, items, Math.max(0, cur));
+// El toque en la zona es el gesto que el navegador exige para pedir el giroscopio (iPhone), el sonido,
+// la pantalla siempre encendida, la pantalla completa y la orientación horizontal.
+let sensorsAsked = false;
+function wakeUp() {
+  unlockAudio(); blip(660, 0.08);
+  if (!sensorsAsked) { sensorsAsked = true; startGyro(); }
+  navigator.wakeLock?.request('screen').catch(() => {});
+  if (S.phone && !document.fullscreenElement) {
+    document.documentElement.requestFullscreen?.().then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
+  }
 }
-function zoneMenu() {
-  const scenes = S.reg.terrain.scenes;
-  const items = Object.keys(scenes).map(key => {
-    const sids = zoneSids(key);
-    const n = sids.filter(s => progress.album[s]).length;
-    return { label: SCENE_LABEL[key] || cap(key), sub: `${scenes[key].name} · ${n}/${sids.length} aves`, fn: () => enterZone(key) };
-  });
-  items.push({ label: '← Otra región', fn: regionMenu });
-  openMenu(S.reg.meta.name.toUpperCase(), items, Math.max(0, Object.keys(scenes).indexOf(S.sceneKey)), regionMenu);
+async function pickZone(key) {
+  wakeUp();
+  $('pick-status').textContent = 'Cargando la zona…';
+  await enterZone(key);
+  toPlace();
 }
+function toPlace() {
+  S.mode = 'place'; S.placeT = 0; showScreen('place');
+  $('place-msg').textContent = 'Gíralo de lado, con la pantalla hacia los tubos, y míralo como unos binoculares.';
+  $('b-enter').hidden = S.phone && gyro.have;
+}
+function go() { // entrar al mundo; el rumbo actual del teléfono pasa a ser el de partida
+  S.mode = 'look'; showScreen(null); layout();
+  S.heading = S.startHeading; S.pitch = gyro.have ? gyro.p : -0.2;
+  if (gyro.have) gyro.off = S.heading - gyro.h;
+  blip(990, 0.08);
+  toast(`<b>${S.reg.terrain.scenes[S.sceneKey].name}</b><br>Gira para buscar aves. Mantén una en la mira para conocerla y fotografiarla.`, 6);
+}
+function pause(msg = '') {
+  if (S.mode !== 'look') return;
+  S.mode = 'pause'; showScreen('pause'); setLock(null);
+  $('pause-msg').textContent = msg || `${cap(S.index.months[S.month])} de ${YEAR} · ${S.zoneSpecies.filter(sp => progress.album[sp.id]).length} de ${S.zoneSpecies.length} aves fotografiadas aquí`;
+}
+$('b-enter').onclick = () => { wakeUp(); go(); };
+$('b-resume').onclick = () => { wakeUp(); toPlace(); };
+$('b-back1').onclick = $('b-back2').onclick = () => { leaveZone(); zoneList(); };
 
 // ------------------------------------------------------------------ región y zona
 function zoneSids(key) {
@@ -163,13 +194,13 @@ function zoneSids(key) {
 }
 
 async function enterRegion(code) {
-  html('.e-menu', '<h3>Cargando la región…</h3>');
+  $('pick-status').textContent = 'Cargando la región…';
   S.reg = await loadRegion(S.index, code);
   try { S.props = await loadJSON(DATA_BASE + `props-${code}.json`); } catch { S.props = null; }
   featuredIn(S.index, S.reg.region); // deja la paleta de cada especie destacada
   rememberRegion(code, Object.keys(S.reg.region.featured || {}).map(Number));
   S.sceneKey = null;
-  zoneMenu();
+  zoneList();
 }
 
 function leaveZone() {
@@ -181,7 +212,6 @@ function leaveZone() {
 }
 
 async function enterZone(key) {
-  html('.e-menu', '<h3>Cargando la zona…</h3>');
   await new Promise(r => setTimeout(r, 30)); // que alcance a pintarse el aviso
   leaveZone();
   const data = S.reg.terrain.scenes[key];
@@ -193,14 +223,11 @@ async function enterZone(key) {
   eye.set(0, sc.heightAt(0, 0) + CFG.eyeHeight, 0);
   assignSlots();
   setAmbience(key);
-  closeMenu();
-  S.mode = 'look';
   S.fov = S.fovGoal = CFG.fovWide; S.pitch = -0.2; S.cardOpen = false; S.bookKey = false;
   buildMarks();
   setMonth(S.month, true);
-  S.heading = S.birds.length ? S.birds[0].bearing - 0.5 : 0; // empezar con un ave cerca, sin tenerla ya en la mira
-  if (gyro.have) gyro.off = S.heading - gyro.h;
-  toast(`<b>${data.name}</b><br>Gira para buscar aves. Cuando una quede en la mira, cantará.`, 5);
+  S.startHeading = S.birds.length ? S.birds[0].bearing - 0.5 : 0; // empezar con un ave cerca, sin tenerla ya en la mira
+  S.heading = S.startHeading;
 }
 
 // Cada especie de la zona tiene un sector fijo del círculo. Los sectores se reparten según lo que hay en
@@ -386,11 +413,39 @@ function aim(dt) {
   S.candT += dt;
   if (S.cand !== S.locked && S.candT > (S.cand ? 0.2 : 0.5)) setLock(S.cand);
   if (S.locked && (S.lockT += dt) > CFG.resing && !S.locked.singing) { S.lockT = 0; sing(S.locked); }
+  // Mantener el ave en la mira: primero se abre la ficha (y se acerca), después se toma la foto.
+  if (S.locked && S.cand === S.locked && !S.shotDone) {
+    S.dwell += dt;
+    if (!S.cardOpen && S.dwell > CFG.dwellCard) toggleCard();
+    if (S.dwell > CFG.dwellPhoto) { S.shotDone = true; S.shot = true; }
+  } else if (!S.locked) S.dwell = 0;
+  ring(S.locked && !S.shotDone ? S.dwell / CFG.dwellPhoto : 0, S.locked?.color);
+}
+function ring(p, color) {
+  all('.e-reticle', el => { el.classList.toggle('ringing', p > 0); el.style.setProperty('--p', clamp(p, 0, 1).toFixed(3)); if (color) el.style.setProperty('--k', color); });
+}
+// Con la ficha abierta el zoom acerca el ave hasta que ocupe CFG.frame del campo visual (salvo que se use Z / X).
+function autoZoom() {
+  if (S.manualZoom) return;
+  if (!S.locked || !S.cardOpen) { S.fovGoal = CFG.fovWide; return; }
+  const b = S.locked, d = centerOf(b, _c).distanceTo(eye), size = Math.max(0.5, (b.m.height ?? 2.5) * b.s * 1.4);
+  S.fovGoal = clamp(2 * Math.atan(size / 2 / d) * 180 / Math.PI / CFG.frame, CFG.fovTele, CFG.fovWide);
+}
+// Mirar al cielo: aparece el mes siguiente y, si se sigue mirando, se pasa a él.
+function sky(dt) {
+  const up = S.pitch > CFG.skyPitch && !S.locked;
+  show('.e-sky', up);
+  if (!up) { if (S.skyT) { S.skyT = 0; ring(0); } return; }
+  S.skyT += dt;
+  const next = S.index.months[(S.month + 1) % 12];
+  html('.e-sky', `<small>sigue mirando el cielo para pasar a</small><b>${cap(next)}</b><small>${cap(S.index.months[S.month])} de ${YEAR} ahora</small>`);
+  ring(S.skyT / CFG.skyHold, '#f2d36b');
+  if (S.skyT > CFG.skyHold) { S.skyT = -1.5; setMonth(S.month + 1); } // −1.5: una pausa antes de poder volver a pasar
 }
 
 function setLock(b) {
   if (S.locked) S.locked.m.setOutline?.(null);
-  S.locked = b; S.lockT = 0; S.cardOpen = false;
+  S.locked = b; S.lockT = 0; S.cardOpen = false; S.dwell = 0; S.shotDone = false; S.manualZoom = false;
   all('.e-reticle', el => { el.classList.toggle('on', !!b); if (b) el.style.setProperty('--k', b.color); });
   if (b) { b.m.setOutline?.(b.color); blip(880, 0.04); sing(b); }
   renderCard();
@@ -497,23 +552,16 @@ async function startGyro() {
 
 // ------------------------------------------------------------------ teclado (Arduino) y puntero
 const keys = new Set();
-function zoom(dir) { S.fovGoal = clamp(S.fovGoal * (dir > 0 ? 0.86 : 1 / 0.86), CFG.fovTele, CFG.fovWide); }
+function zoom(dir) { S.manualZoom = true; S.fovGoal = clamp(S.fovGoal * (dir > 0 ? 0.86 : 1 / 0.86), CFG.fovTele, CFG.fovWide); }
 function saveLens() { store('mirador.lentes', S.lens); layout(); }
 window.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
-  if (S.mode === 'start') { if (k === ' ' || k === 'enter') { e.preventDefault(); start(); } return; }
+  if (S.mode === 'place') { if (k === ' ' || k === 'enter') { e.preventDefault(); wakeUp(); go(); } return; }
+  if (S.mode === 'pause') { if (k === ' ' || k === 'enter') { e.preventDefault(); toPlace(); } return; }
   if ([' ', 'enter', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
   if (k === 'b') { S.bino = !S.bino; layout(); return; }
   if (k === '[' || k === ']') { S.lens.sep = clamp(S.lens.sep + (k === ']' ? 0.5 : -0.5), 25, 50); saveLens(); return; }
   if (k === '-' || k === '=') { S.lens.dia = clamp(S.lens.dia + (k === '=' ? 0.5 : -0.5), 15, 50); saveLens(); return; }
-  if (S.mode === 'menu') {
-    if (e.repeat) return;
-    if (k === 'z' || k === 'arrowdown') menuMove(1);
-    else if (k === 'x' || k === 'arrowup') menuMove(-1);
-    else if (k === ' ' || k === 'enter') menuPick();
-    else if (k === 'escape' && S.menu.back) S.menu.back();
-    return;
-  }
   if (S.mode !== 'look') return;
   if (k.startsWith('arrow')) { keys.add(k); return; }
   if (k === 'z') zoom(1);
@@ -525,7 +573,7 @@ window.addEventListener('keydown', e => {
   else if (k === 'n') setMonth(S.month - 1);
   else if (k === 'l') S.bookKey = !S.bookKey;
   else if (k === 'c') { S.pitch = 0; if (gyro.have) gyro.off = S.heading - gyro.h; }
-  else if (k === 'escape') { leaveZone(); zoneMenu(); }
+  else if (k === 'escape') pause();
 });
 window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
 window.addEventListener('blur', () => keys.clear());
@@ -538,7 +586,7 @@ canvas.addEventListener('pointermove', e => {
   if (gyro.have) gyro.off -= dx * k; else { S.heading -= dx * k; S.pitch = clamp(S.pitch + dy * k, -1.2, 1.2); }
   drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY;
 });
-canvas.addEventListener('pointerup', () => { if (drag && drag.moved < 5 && S.mode === 'look') S.shot = true; drag = null; });
+canvas.addEventListener('pointerup', () => { if (drag && drag.moved < 5 && S.mode === 'look') { if (gyro.have) pause(); else S.shot = true; } drag = null; });
 canvas.addEventListener('wheel', e => { if (S.mode === 'look') { e.preventDefault(); zoom(e.deltaY < 0 ? 1 : -1); } }, { passive: false });
 
 // ------------------------------------------------------------------ bucle
@@ -546,6 +594,8 @@ let last = performance.now(), acc = 0;
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   requestAnimationFrame(frame);
+  if (S.mode === 'place') placeCheck(dt);
+  if (S.mode === 'look' && S.phone && gyro.have && portrait()) pause('Sacaste el teléfono del visor.');
   if (S.mode !== 'look' || !S.world) return;
   // mirada: giroscopio (las flechas corren el mundo) o flechas
   const turn = (keys.has('arrowright') ? 1 : 0) - (keys.has('arrowleft') ? 1 : 0), tilt = (keys.has('arrowup') ? 1 : 0) - (keys.has('arrowdown') ? 1 : 0);
@@ -579,6 +629,8 @@ function frame(now) {
   S.sc.animate?.(now / 1000);
   setBook(S.bookKey || S.pitch < CFG.bookPitch);
   aim(dt);
+  sky(dt);
+  autoZoom();
   if (CFG.monthSeconds && !S.locked && !S.bookOn && (S.monthT += dt) > CFG.monthSeconds) setMonth(S.month + 1);
 
   renderer.setClearColor(S.fog);
@@ -605,29 +657,30 @@ $('opt-bino').onchange = e => { S.bino = e.target.checked; syncSetup(); };
 $('opt-sep').oninput = e => { S.lens.sep = +e.target.value; store('mirador.lentes', S.lens); syncSetup(); };
 $('opt-dia').oninput = e => { S.lens.dia = +e.target.value; store('mirador.lentes', S.lens); syncSetup(); };
 
-async function start() {
-  if (S.mode !== 'start' || !S.index) return;
-  S.mode = 'loading';
-  unlockAudio(); blip(660, 0.08);
-  startGyro();
-  navigator.wakeLock?.request('screen').catch(() => {}); // que no se apague la pantalla dentro de los binoculares
-  if (matchMedia('(pointer: coarse)').matches) document.documentElement.requestFullscreen?.().catch(() => {});
-  $('start').hidden = true;
-  const r = q.get('r'), z = q.get('z');
-  if (r && CFG.regions.includes(r)) { await enterRegion(r); if (z && S.reg.terrain.scenes[z]) await enterZone(z); }
-  else regionMenu();
+// Empieza solo cuando el teléfono queda de lado (horizontal), mirando al frente y quieto un momento.
+const portrait = () => innerHeight > innerWidth;
+function placeCheck(dt) {
+  if (!gyro.have) return;
+  const moved = S.placeLast ? Math.abs(wrap(gyro.h - S.placeLast.h)) + Math.abs(gyro.p - S.placeLast.p) : 1;
+  S.placeLast = { h: gyro.h, p: gyro.p };
+  const ok = !portrait() && Math.abs(gyro.p) < 0.5 && moved < 0.6 * dt * 4;
+  S.placeT = ok ? S.placeT + dt : 0;
+  $('place-msg').textContent = portrait() ? 'Gíralo de lado, con la pantalla hacia los tubos, y míralo como unos binoculares.'
+    : ok ? 'Quieto… ¡ya casi!' : 'Ahora mira hacia el frente, como con unos binoculares.';
+  if (S.placeT > CFG.placeHold) go();
 }
-$('b-start').onclick = start;
 
 buildEyes();
 syncSetup();
-show('.e-top', false); show('.e-compass', false); show('.e-reticle', false);
+showScreen('pick');
 requestAnimationFrame(frame);
-Promise.all([loadWorld(), loadKit()]).then(([index]) => {
+Promise.all([loadWorld(), loadKit()]).then(async ([index]) => {
   S.index = index;
-  $('start-status').textContent = 'Deja el teléfono en la base, con la pantalla hacia los tubos, y toma los binoculares.';
-  $('b-start').disabled = false;
-  if (q.has('auto')) start();
-}).catch(err => { $('start-status').textContent = 'No se pudieron cargar los datos: ' + err.message; });
+  const r = q.get('r'), z = q.get('z');
+  if (r && CFG.regions.includes(r)) {
+    await enterRegion(r);
+    if (z && S.reg.terrain.scenes[z]) { await enterZone(z); if (q.has('auto')) { unlockAudio(); go(); } else toPlace(); }
+  } else regionList();
+}).catch(err => { $('pick-status').textContent = 'No se pudieron cargar los datos: ' + err.message; });
 
-window.M = S; window.dbg = { setMonth, enterRegion, enterZone, setLock, takePhoto, gyro, camera, CFG }; // para depurar desde la consola
+window.M = S; window.dbg = { setMonth, enterRegion, enterZone, pause, go, setLock, takePhoto, gyro, camera, CFG }; // para depurar desde la consola
